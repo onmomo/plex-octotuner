@@ -33,12 +33,22 @@ At startup, the service validates configuration, fetches the M3U playlist, parse
 This layer reads environment variables and validates them into a typed runtime config object. Important values include:
 
 - `M3U_URL`
+- `ADVERTISED_BASE_URL`
 - `HDHR_TUNER_COUNT` with default `4`
 - `PLAYLIST_REFRESH_SECONDS` with default `300`
 - `HDHR_FRIENDLY_NAME`
-- `HDHR_DEVICE_ID` or a stable deterministic fallback
+- `HDHR_DEVICE_ID`
+- `HDHR_DEVICE_AUTH` with stable default derived from `HDHR_DEVICE_ID`
 - `SERVER_PORT`
-- optional advertised host or base URL overrides for environments where direct host inference is unreliable
+
+V1 configuration rules are intentionally strict:
+
+- `M3U_URL` is mandatory
+- `ADVERTISED_BASE_URL` is mandatory and must be the exact LAN-reachable base URL Plex should use, including scheme, host or IP, and port
+- `HDHR_DEVICE_ID` is mandatory and must be a valid 8-character HDHomeRun-style uppercase hexadecimal device ID
+- `HDHR_DEVICE_ID` must be unique on the local network; the service does not auto-generate or persist a fallback in v1
+- `HDHR_DEVICE_AUTH` defaults to `octotuner-<HDHR_DEVICE_ID>` when omitted
+- `SERVER_PORT` controls the Nitro bind port, but `ADVERTISED_BASE_URL` is the source of truth for what gets emitted in discovery and lineup payloads
 
 Invalid config should fail fast during startup with actionable log output.
 
@@ -66,11 +76,154 @@ This layer exposes the minimal protocol surface Plex needs for live TV integrati
 
 The bridge presents itself as one virtual HDHomeRun device with a configurable tuner count. Device identity must remain stable across restarts so Plex does not treat it as a new tuner after each deploy.
 
+`HDHR_TUNER_COUNT` is metadata reported to Plex for scheduling and tuner-capacity presentation. The bridge does not implement local tuner locking or local concurrency enforcement in v1 because playback is a redirect-only pass-through path. Upstream octopus behavior remains the source of truth for actual stream concurrency limits.
+
 ### 4. Channel Serving Layer
 
 This layer exposes per-channel URLs that Plex can use for playback. The first implementation mode should be HTTP redirect pass-through. Each lineup entry points to a bridge-owned channel URL, and that URL responds with a redirect to the original octopus stream URL.
 
 This preserves a true no-conversion path while keeping the bridge free to own stable outward-facing lineup URLs. If later testing shows certain Plex flows require reverse proxying instead of redirecting, that should be added as a separate optional mode rather than built into v1.
+
+## Normative Protocol Contract For V1
+
+V1 deliberately implements a narrow but explicit interoperability surface. The goal is not to mimic every HDHomeRun behavior. The goal is to implement the exact subset Plex uses for discovery, lineup loading, and playback for an externally managed channel list.
+
+### Discovery Transports
+
+The service must expose both of these discovery mechanisms:
+
+- SSDP or UPnP advertisement on UDP port `1900`, advertising a `LOCATION` header that resolves to `<ADVERTISED_BASE_URL>/dri/device.xml`
+- HDHomeRun discovery replies on UDP port `65001`, advertising the same base URL, lineup URL, device ID, and tuner count
+
+V1 does not implement the HDHomeRun TCP control protocol on port `65001`, nor `/tuner<n>/...` lock or status commands. That omission is intentional for the first milestone and must be validated against real Plex setup and playback during manual verification.
+
+### Discovery Wire-Format Source Of Truth
+
+The implementation must not invent discovery payloads ad hoc. These references are the source of truth for the wire format:
+
+- SSDP request and advertisement framing follows UPnP Device Architecture 1.0 discovery rules
+- HDHomeRun UDP discovery packet structure follows SiliconDust's HDHomeRun Discovery API and compatible `libhdhomerun` behavior
+
+V1 discovery minimums:
+
+- send SSDP `NOTIFY` advertisements to `239.255.255.250:1900`
+- reply to SSDP `M-SEARCH` requests for `ssdp:all` and `upnp:rootdevice`
+- SSDP advertisements and replies must include `LOCATION`, `CACHE-CONTROL`, `SERVER`, and `USN`
+- SSDP root-device advertisement uses `NT: upnp:rootdevice`
+- SSDP root-device reply uses `ST: upnp:rootdevice`
+- SSDP `USN` prefix must match the XML `UDN` value
+- HDHomeRun UDP replies on `65001` must encode `DeviceID`, `BaseURL`, `LineupURL`, and `TunerCount` using the SiliconDust discovery packet format rather than a custom protocol
+
+### Required HTTP Endpoints
+
+The service must serve these endpoints:
+
+- `GET /discover.json`
+- `GET /lineup.json`
+- `GET /lineup_status.json`
+- `POST /lineup.post`
+- `GET /dri/device.xml`
+- `GET /device.xml` as an alias of `/dri/device.xml`
+- `GET /auto/v<channel-id>`
+
+The bridge may later add `lineup.xml` or `lineup.m3u`, but they are not part of the v1 acceptance contract.
+
+### `discover.json`
+
+`GET /discover.json` must return a stable JSON object containing at least these fields:
+
+- `FriendlyName`
+- `Manufacturer` set to `Silicondust`
+- `ModelNumber`
+- `FirmwareName`
+- `FirmwareVersion`
+- `DeviceID`
+- `DeviceAuth`
+- `BaseURL`
+- `LineupURL`
+- `TunerCount`
+
+Example shape:
+
+```json
+{
+  "FriendlyName": "octotuner",
+  "Manufacturer": "Silicondust",
+  "ModelNumber": "HDTC-2US",
+  "FirmwareName": "hdhomeruntc_atsc",
+  "FirmwareVersion": "20150826",
+  "DeviceID": "105A1B2C",
+  "DeviceAuth": "octotuner-105A1B2C",
+  "BaseURL": "http://192.168.1.50:34400",
+  "LineupURL": "http://192.168.1.50:34400/lineup.json",
+  "TunerCount": 4
+}
+```
+
+### `lineup_status.json`
+
+`GET /lineup_status.json` must always return a static, non-scanning status because the channel list is externally managed by the M3U source rather than by a Plex-triggered RF scan.
+
+Example shape:
+
+```json
+{
+  "ScanInProgress": 0,
+  "ScanPossible": 0,
+  "Source": "Cable",
+  "SourceList": ["Cable"]
+}
+```
+
+The `ScanPossible: 0` requirement is intentional so Plex uses the provided lineup rather than attempting a hardware scan workflow.
+
+### `lineup.json`
+
+`GET /lineup.json` must return a JSON array of channel entries with at least:
+
+- `GuideNumber`
+- `GuideName`
+- `URL`
+
+Example shape:
+
+```json
+[
+  {
+    "GuideNumber": "101",
+    "GuideName": "Das Erste HD",
+    "URL": "http://192.168.1.50:34400/auto/v2f8c4d9a3e10"
+  }
+]
+```
+
+### `lineup.post`
+
+`POST /lineup.post` must return `200 OK` with an empty body and perform no action in v1, including for requests such as `scan=start`. Plex may call this during setup flows even when the channel list is externally managed. The bridge treats lineup mutation and scanning as unsupported because channels come only from the configured M3U source.
+
+### `device.xml`
+
+`GET /dri/device.xml` and `GET /device.xml` must return the same UPnP device description XML advertising one HDHomeRun DRI tuner device. The XML must include stable values for at least:
+
+- `friendlyName`
+- `manufacturer`
+- `modelName`
+- `modelNumber`
+- `serialNumber`
+- `UDN`
+- `presentationURL`
+
+`serialNumber` must equal `HDHR_DEVICE_ID`. `UDN` must be derived deterministically from `HDHR_DEVICE_ID`, for example a UUIDv5 under an octotuner namespace. The XML must publish the same LAN-reachable base URL as `ADVERTISED_BASE_URL` and remain byte-stable across restarts except for intentional config changes.
+
+### Channel Playback Endpoint
+
+`GET /auto/v<channel-id>` is the bridge-owned playback URL emitted in `lineup.json`. V1 playback rules:
+
+- only absolute `http` and `https` upstream stream URLs are supported
+- unsupported schemes are excluded from the lineup during parsing
+- successful playback responses use `302 Found`
+- successful playback responses include `Cache-Control: no-store`
+- the redirect target is the original octopus stream URL exactly as provided in the parsed playlist, including its query parameters
 
 ## Protocol And Compatibility Strategy
 
@@ -83,6 +236,8 @@ Compatibility priority for v1:
 3. Plex can start playback for channels whose URLs already work directly from the M3U source
 
 Anything beyond this core path should be deferred until interoperability testing proves it is needed.
+
+The requirement to serve `/dri/device.xml`, `/lineup_status.json`, and a no-op `/lineup.post` is based on observed Plex interoperability behavior and Tvheadend HDHomeRun emulation notes, not just SiliconDust's published HTTP API.
 
 ## Data Model
 
@@ -98,6 +253,24 @@ The normalized in-memory channel structure should be intentionally small:
 
 The lineup response adapter maps this internal model into whatever exact fields Plex expects from an HDHomeRun lineup entry.
 
+### Stable Channel Identity Rules
+
+The channel identity rules must be deterministic so refreshes do not cause unnecessary Plex churn:
+
+1. If `tvg-id` is present and non-empty, use normalized `tvg-id` as the primary identity input.
+2. Otherwise, if a channel number is present, use normalized channel number plus normalized display name.
+3. Otherwise, use normalized display name plus the upstream URL origin and path without the query string.
+
+The internal `id` should be a deterministic hash of the chosen identity input. The query string must not participate in identity derivation because descrambler tokens or other request parameters may change without representing a different channel.
+
+Duplicate channels are resolved with a first-wins policy after stable sorting. Dropped duplicates must be logged with redacted details. The exposed lineup order should be:
+
+- channels with numeric guide numbers in ascending numeric order
+- channels without numeric guide numbers in case-insensitive name order
+- deterministic tie-break by internal `id`
+
+If a channel disappears from the M3U on a successful refresh, it is removed from the active lineup. If it later reappears with the same identity input, it must regain the same internal `id` and therefore the same playback URL path.
+
 ## Refresh Behavior
 
 The service refreshes the M3U playlist periodically, default every 300 seconds. Refreshes should be atomic:
@@ -112,6 +285,19 @@ If a periodic refresh fails, the service logs the error and continues serving th
 
 The service is designed for same-LAN deployment. Discovery replies should advertise the HTTP endpoint base URL that Plex can reach directly from the local network. Because containers can make host detection ambiguous, config should allow explicit override of the advertised host or base URL for reliable deployment in Docker.
 
+V1 officially supports:
+
+- bare Node deployment on a LAN-visible host
+- Docker deployment on Linux using `network_mode: host`
+
+V1 does not officially support automatic Plex discovery from a Docker bridge network using only `-p` port publishing because SSDP multicast and HDHomeRun discovery traffic may not reach the container reliably. A future version can broaden this, but the first implementation should optimize for the supported path and document it clearly.
+
+Required network exposure for the supported Docker path:
+
+- UDP `1900` for SSDP
+- UDP `65001` for HDHomeRun discovery
+- TCP port from `ADVERTISED_BASE_URL` for Nitro HTTP endpoints
+
 The bridge should not assume NAT traversal or internet exposure. Security hardening for hostile networks is out of scope for v1, though the service should avoid obviously unsafe behavior such as exposing sensitive config values in public endpoints.
 
 ## Error Handling
@@ -121,7 +307,8 @@ The bridge should not assume NAT traversal or internet exposure. Security harden
 - missing or invalid `M3U_URL`: fail startup
 - initial fetch failure: fail startup
 - zero valid channels after parsing: fail startup
-- invalid advertised host configuration: fail startup
+- invalid `ADVERTISED_BASE_URL` configuration: fail startup
+- invalid `HDHR_DEVICE_ID` or duplicate local identity configuration: fail startup
 
 ### Runtime Errors
 
@@ -144,6 +331,13 @@ Logging should be structured enough to support container usage:
 
 Verbose request logging can be gated behind a debug env flag if needed, but basic operational logs should exist by default.
 
+Sensitive URL handling is explicit:
+
+- never log the raw `M3U_URL`
+- never log raw upstream stream URLs
+- if a URL must be referenced in logs, log only scheme, host, and path or a deterministic hash
+- never log query strings because they may contain descrambler or session parameters
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -151,7 +345,7 @@ Verbose request logging can be gated behind a debug env flag if needed, but basi
 - config parsing and validation
 - M3U parsing for representative channel entries
 - stable channel ID derivation
-- stable device ID selection logic
+- `HDHR_DEVICE_ID` and `HDHR_DEVICE_AUTH` validation
 - lineup serialization
 - device metadata serialization
 
@@ -169,6 +363,7 @@ Verbose request logging can be gated behind a debug env flag if needed, but basi
 
 - run container on same LAN as Plex
 - confirm Plex discovers the tuner
+- confirm Plex fetches `/dri/device.xml`, `/discover.json`, and `/lineup_status.json` successfully during setup
 - confirm Plex loads the lineup
 - confirm playback works for descrambled channels sourced from octopus-generated M3U URLs
 
@@ -193,9 +388,18 @@ To keep the code easy to reason about, the implementation should start with focu
 
 Nuxt should be used as the application shell, but the core bridge logic should remain framework-light so protocol and parsing behavior are easy to test directly.
 
+## External References
+
+The implementation and tests should be guided by these interoperability references:
+
+- SiliconDust HDHomeRun HTTP Development Guide
+- SiliconDust HDHomeRun Discovery API documentation
+- Tvheadend HDHomeRun emulation notes for Plex-required endpoints
+- observed Plex logs showing requests for `/dri/device.xml`, `/discover.json`, and `/lineup_status.json`
+
 ## Acceptance Criteria
 
-- The service runs as a single Nuxt 4 container with env-only configuration
+- The service runs as a single Nuxt 4 service with env-only configuration, with Linux Docker `network_mode: host` as the supported container deployment path in v1
 - Plex can discover the service as one HDHomeRun-style device on the LAN
 - Plex can fetch lineup data derived from the configured M3U playlist
 - Playback URLs preserve octopus query parameters and avoid transcoding
