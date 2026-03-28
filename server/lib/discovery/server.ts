@@ -1,4 +1,5 @@
 import { createSocket, type RemoteInfo, type Socket } from 'node:dgram'
+import { isIP } from 'node:net'
 import type { BridgeConfig } from '../config'
 import type { BridgeLogger, BridgeRuntime, CleanupRegistration, DiscoveryHandle } from '../runtime'
 import { buildHdhomerunDiscoveryReply } from './hdhomerun-packets'
@@ -40,6 +41,14 @@ export type DiscoveryServerOptions = {
   ssdpMulticastHost?: string
   joinSsdpMulticast?: boolean
   startupNotify?: boolean
+}
+
+function asIpv4Interface(candidate: string | undefined): string | undefined {
+  return isIP(candidate ?? '') === 4 ? candidate : undefined
+}
+
+function resolveSsdpMulticastInterface(config: BridgeConfig, options: DiscoveryServerOptions): string | undefined {
+  return asIpv4Interface(options.bindAddress) ?? asIpv4Interface(config.advertisedBaseUrl.hostname)
 }
 
 function parseSsdpHeaders(message: Buffer): Map<string, string> | null {
@@ -238,12 +247,18 @@ export async function startDiscoveryServer(
   const ssdpMulticastHost = options.ssdpMulticastHost ?? SSDP_MULTICAST_HOST
   const joinSsdpMulticast = options.joinSsdpMulticast ?? true
   const startupNotify = options.startupNotify ?? true
+  const ssdpMulticastInterface = resolveSsdpMulticastInterface(runtime.config, options)
 
   const ssdpSocket = createSocket({ type: UDP4_SOCKET_TYPE, reuseAddr: true })
   registerSocketCleanup(ssdpSocket, registerCleanup)
   await bindSocket(ssdpSocket, ssdpPort, options.bindAddress)
   if (joinSsdpMulticast) {
-    ssdpSocket.addMembership(ssdpMulticastHost)
+    if (ssdpMulticastInterface) {
+      ssdpSocket.addMembership(ssdpMulticastHost, ssdpMulticastInterface)
+      ssdpSocket.setMulticastInterface(ssdpMulticastInterface)
+    } else {
+      ssdpSocket.addMembership(ssdpMulticastHost)
+    }
   }
 
   const hdhomerunSocket = createSocket(UDP4_SOCKET_TYPE)

@@ -71,6 +71,7 @@ const dgramMock = vi.hoisted(() => {
       addMembership: vi.fn((multicastAddress: string) => {
         record.addMembershipImpl?.(multicastAddress)
       }),
+      setMulticastInterface: vi.fn(),
       send: vi.fn((message: string | Uint8Array, port: number, address: string, callback?: (error: Error | null) => void) => {
         record.sendImpl?.(message, port, address, callback)
         if (record.sendImpl) {
@@ -160,7 +161,8 @@ describe('createBridgeRuntime', () => {
 
     expect(dgramMock.createSocket).toHaveBeenCalledTimes(2)
     expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1900, expect.any(Function))
-    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
+    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250', '192.168.1.50')
+    expect(dgramMock.state.created[0]?.socket.setMulticastInterface).toHaveBeenCalledWith('192.168.1.50')
     expect(dgramMock.state.created[1]?.socket.bind).toHaveBeenCalledWith(65001, expect.any(Function))
     expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
     expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)

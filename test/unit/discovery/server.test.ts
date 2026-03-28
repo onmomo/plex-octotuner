@@ -45,6 +45,7 @@ const dgramMock = vi.hoisted(() => {
         return socket
       }),
       addMembership: vi.fn(),
+      setMulticastInterface: vi.fn(),
       send: vi.fn((_message: string | Uint8Array, _port: number, _address: string, callback?: (error: Error | null) => void) => {
         callback?.(null)
         return socket
@@ -197,7 +198,8 @@ describe('discovery server responders', () => {
 
     expect(dgramMock.createSocket).toHaveBeenCalledTimes(2)
     expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1900, expect.any(Function))
-    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
+    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250', '192.168.1.50')
+    expect(dgramMock.state.created[0]?.socket.setMulticastInterface).toHaveBeenCalledWith('192.168.1.50')
     expect(dgramMock.state.created[0]?.socket.send).toHaveBeenCalledWith(
       expect.stringContaining('NOTIFY * HTTP/1.1'),
       1900,
@@ -237,6 +239,51 @@ describe('discovery server responders', () => {
 
     expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
     expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the selected ipv4 interface for SSDP multicast membership and outbound notify', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const runtime = {
+      config,
+      logger,
+      store: { getChannels: () => [] },
+      fetchPlaylist: vi.fn(),
+      stop: vi.fn()
+    }
+
+    const handle = await startDiscoveryServer(
+      runtime,
+      undefined,
+      { bindAddress: '192.168.1.77' }
+    )
+
+    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250', '192.168.1.77')
+    expect(dgramMock.state.created[0]?.socket.setMulticastInterface).toHaveBeenCalledWith('192.168.1.77')
+
+    await handle.stop()
+  })
+
+  it('falls back to default multicast routing when no usable ipv4 interface can be derived', async () => {
+    const hostnameConfig = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://octopus.local:34400',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const runtime = {
+      config: hostnameConfig,
+      logger,
+      store: { getChannels: () => [] },
+      fetchPlaylist: vi.fn(),
+      stop: vi.fn()
+    }
+
+    const handle = await startDiscoveryServer(runtime)
+
+    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
+    expect(dgramMock.state.created[0]?.socket.setMulticastInterface).not.toHaveBeenCalled()
+
+    await handle.stop()
   })
 
   it('honors test-only bind and startup options for live socket coverage', async () => {
