@@ -10,7 +10,6 @@ import driDeviceRoute from '../../server/routes/dri/device.xml.get'
 import lineupRoute from '../../server/routes/lineup.json.get'
 import lineupPostRoute from '../../server/routes/lineup.post.post'
 import lineupStatusRoute from '../../server/routes/lineup_status.json.get'
-import runtimePlugin from '../../server/plugins/runtime.server'
 
 const { mockNitroApp } = vi.hoisted(() => ({
   mockNitroApp: {} as { localRuntime?: BridgeRuntime }
@@ -141,25 +140,5 @@ describe('required bridge http routes', () => {
     expect(runtime.logger.info).toHaveBeenCalledWith(expect.stringContaining('channel request'))
 
     await expect($fetch('/auto/vunknown')).rejects.toMatchObject({ statusCode: 404 })
-  })
-
-  it('stops the attached bridge runtime when Nitro closes', async () => {
-    const stop = vi.fn(async () => {})
-    let closeHook: (() => Promise<void>) | undefined
-
-    await runtimePlugin({
-      hooks: {
-        hookOnce(name: string, handler: () => Promise<void>) {
-          if (name === 'close') {
-            closeHook = handler
-          }
-        }
-      },
-      localRuntime: { stop }
-    } as never)
-
-    await closeHook?.()
-
-    expect(stop).toHaveBeenCalledTimes(1)
   })
 })

@@ -3,6 +3,8 @@ type LogContext = Record<string, unknown> | unknown[] | string | number | boolea
 export type Logger = {
   sink: string[]
   info(message: string, context?: LogContext): void
+  error(message: string, context?: LogContext): void
+  warn(message: string, context?: LogContext): void
 }
 
 const URL_IN_TEXT_PATTERN = /https?:\/\/[^\s"'<>]+/gi
@@ -63,6 +65,12 @@ export function createLogger(): Logger {
   return {
     sink,
     info(message, context) {
+      sink.push(formatLogLine(message, context))
+    },
+    error(message, context) {
+      sink.push(formatLogLine(message, context))
+    },
+    warn(message, context) {
       sink.push(formatLogLine(message, context))
     }
   }
