@@ -4,11 +4,11 @@ import { ChannelStore } from './channels/store'
 import { fetchM3U } from './m3u-fetch'
 import { probeDeviceIdCollision } from './discovery/device-id-probe'
 
-type DiscoveryHandle = {
+export type DiscoveryHandle = {
   stop: () => Promise<void> | void
 }
 
-type CleanupRegistration = () => Promise<void> | void
+export type CleanupRegistration = () => Promise<void> | void
 
 export type BridgeLogger = {
   info(message: string, context?: unknown): void

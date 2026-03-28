@@ -1,6 +1,89 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
+import { startDiscoveryServer } from '../../server/lib/discovery/server'
 import { createBridgeRuntime } from '../../server/lib/runtime'
+
+const dgramMock = vi.hoisted(() => {
+  type Handler = (...args: any[]) => void
+
+  function createSocketRecord() {
+    const handlers = new Map<string, Set<Handler>>()
+
+    const addHandler = (event: string, handler: Handler): void => {
+      const listeners = handlers.get(event) ?? new Set<Handler>()
+      listeners.add(handler)
+      handlers.set(event, listeners)
+    }
+
+    const removeHandler = (event: string, handler: Handler): void => {
+      handlers.get(event)?.delete(handler)
+    }
+
+    const socket = {
+      on: vi.fn((event: string, handler: Handler) => {
+        addHandler(event, handler)
+        return socket
+      }),
+      once: vi.fn((event: string, handler: Handler) => {
+        const wrapped = (...args: any[]) => {
+          removeHandler(event, wrapped)
+          handler(...args)
+        }
+
+        addHandler(event, wrapped)
+        return socket
+      }),
+      off: vi.fn((event: string, handler: Handler) => {
+        removeHandler(event, handler)
+        return socket
+      }),
+      bind: vi.fn((port: number, callback?: () => void) => {
+        callback?.()
+        return socket
+      }),
+      addMembership: vi.fn(),
+      send: vi.fn((_message: string | Uint8Array, _port: number, _address: string, callback?: (error: Error | null) => void) => {
+        callback?.(null)
+        return socket
+      }),
+      close: vi.fn((callback?: () => void) => {
+        callback?.()
+      })
+    }
+
+    return { handlers, socket }
+  }
+
+  const state = {
+    created: [] as ReturnType<typeof createSocketRecord>[],
+    queue: [] as ReturnType<typeof createSocketRecord>[]
+  }
+
+  const reset = () => {
+    state.created = []
+    state.queue = [createSocketRecord(), createSocketRecord()]
+  }
+
+  reset()
+
+  return {
+    state,
+    reset,
+    createSocket: vi.fn(() => {
+      const next = state.queue.shift()
+      if (!next) {
+        throw new Error('unexpected createSocket call')
+      }
+
+      state.created.push(next)
+      return next.socket
+    })
+  }
+})
+
+vi.mock('node:dgram', () => ({
+  createSocket: dgramMock.createSocket
+}))
 
 const samplePlaylist = readFileSync(new URL('../fixtures/m3u/sample.m3u', import.meta.url), 'utf8')
 const invalidOnlyPlaylist = readFileSync(new URL('../fixtures/m3u/invalid-only.m3u', import.meta.url), 'utf8')
@@ -12,6 +95,30 @@ const validEnv = {
 }
 
 describe('createBridgeRuntime', () => {
+  it('starts and stops the real discovery server within the runtime lifecycle', async () => {
+    dgramMock.reset()
+
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+
+    const runtime = await createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: startDiscoveryServer
+    })
+
+    await runtime.stop()
+    await runtime.stop()
+
+    expect(dgramMock.createSocket).toHaveBeenCalledTimes(2)
+    expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1900, expect.any(Function))
+    expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
+    expect(dgramMock.state.created[1]?.socket.bind).toHaveBeenCalledWith(65001, expect.any(Function))
+    expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
+    expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
+  })
+
   it('loads startup config and initial channels', async () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 

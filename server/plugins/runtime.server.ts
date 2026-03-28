@@ -1,4 +1,5 @@
 import { defineNitroPlugin, useNitroApp } from 'nitropack/runtime'
+import { startDiscoveryServer } from '../lib/discovery/server'
 import { createLogger } from '../lib/logger'
 import type { BridgeRuntime } from '../lib/runtime'
 import { createBridgeRuntime } from '../lib/runtime'
@@ -23,7 +24,8 @@ export default defineNitroPlugin(async (nitroApp) => {
 
   runtimeApp.localRuntime = await createBridgeRuntime({
     env: process.env,
-    logger
+    logger,
+    startDiscovery: startDiscoveryServer
   })
 
   nitroApp.hooks.hookOnce('close', async () => {

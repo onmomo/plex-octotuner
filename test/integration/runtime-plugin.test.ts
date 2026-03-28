@@ -4,15 +4,21 @@ import type { BridgeRuntime } from '../../server/lib/runtime'
 const {
   createBridgeRuntimeMock,
   createLoggerMock,
-  mockNitroApp
+  mockNitroApp,
+  startDiscoveryServerMock
 } = vi.hoisted(() => ({
   createBridgeRuntimeMock: vi.fn(),
   createLoggerMock: vi.fn(),
-  mockNitroApp: {} as { localRuntime?: BridgeRuntime }
+  mockNitroApp: {} as { localRuntime?: BridgeRuntime },
+  startDiscoveryServerMock: vi.fn()
 }))
 
 vi.mock('../../server/lib/runtime', () => ({
   createBridgeRuntime: createBridgeRuntimeMock
+}))
+
+vi.mock('../../server/lib/discovery/server', () => ({
+  startDiscoveryServer: startDiscoveryServerMock
 }))
 
 vi.mock('../../server/lib/logger', () => ({
@@ -51,7 +57,8 @@ describe('runtime Nitro plugin', () => {
     expect(createLoggerMock).toHaveBeenCalledTimes(1)
     expect(createBridgeRuntimeMock).toHaveBeenCalledWith({
       env: process.env,
-      logger
+      logger,
+      startDiscovery: startDiscoveryServerMock
     })
     expect((nitroApp as { localRuntime?: BridgeRuntime }).localRuntime).toBe(runtime)
 
