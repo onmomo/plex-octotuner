@@ -4,6 +4,7 @@ export type BridgeConfig = {
   serverPort: number
   friendlyName: string
   playlistRefreshSeconds: number
+  tunerCount: number
   deviceId: string
   deviceAuth: string
 }
@@ -11,6 +12,7 @@ export type BridgeConfig = {
 const DEFAULT_SERVER_PORT = 34400
 const DEFAULT_FRIENDLY_NAME = 'octotuner'
 const DEFAULT_PLAYLIST_REFRESH_SECONDS = 300
+const DEFAULT_TUNER_COUNT = 4
 const DEVICE_ID_PATTERN = /^[A-F0-9]{8}$/
 const HTTP_SCHEMES = new Set(['http:', 'https:'])
 
@@ -131,6 +133,11 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
     'PLAYLIST_REFRESH_SECONDS',
     DEFAULT_PLAYLIST_REFRESH_SECONDS
   )
+  const tunerCount = parsePositiveInt(
+    env.HDHR_TUNER_COUNT,
+    'HDHR_TUNER_COUNT',
+    DEFAULT_TUNER_COUNT
+  )
   const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
   const deviceAuth = env.HDHR_DEVICE_AUTH === undefined
     ? `${DEFAULT_FRIENDLY_NAME}-${deviceId}`
@@ -146,6 +153,7 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
     serverPort,
     friendlyName,
     playlistRefreshSeconds,
+    tunerCount,
     deviceId,
     deviceAuth
   }

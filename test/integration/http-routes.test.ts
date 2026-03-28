@@ -28,7 +28,8 @@ const samplePlaylist = readFileSync(new URL('../fixtures/m3u/sample.m3u', import
 const validEnv = {
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C'
+  HDHR_DEVICE_ID: '105A1B2C',
+  HDHR_TUNER_COUNT: '2'
 }
 
 describe('required bridge http routes', () => {
@@ -91,7 +92,8 @@ describe('required bridge http routes', () => {
       Manufacturer: 'Silicondust',
       ModelNumber: 'HDTC-2US',
       FirmwareName: 'hdhomeruntc_atsc',
-      FirmwareVersion: '20150826'
+      FirmwareVersion: '20150826',
+      TunerCount: 2
     })
 
     expect(await $fetch('/lineup_status.json')).toEqual({

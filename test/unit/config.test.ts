@@ -17,6 +17,25 @@ describe('loadBridgeConfig', () => {
     expect(config.serverPort).toBe(34400)
     expect(config.friendlyName).toBe('octotuner')
     expect(config.playlistRefreshSeconds).toBe(300)
+    expect(config.tunerCount).toBe(4)
+  })
+
+  it('allows overriding the advertised HDHomeRun tuner count', () => {
+    const config = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_TUNER_COUNT: '2'
+    })
+
+    expect(config.tunerCount).toBe(2)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_TUNER_COUNT: '0'
+    })).toThrow(/HDHR_TUNER_COUNT/)
   })
 
   it('rejects mismatched advertised and bind ports', () => {
