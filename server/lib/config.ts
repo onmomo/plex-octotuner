@@ -1,0 +1,104 @@
+export type BridgeConfig = {
+  m3uUrl: URL
+  advertisedBaseUrl: URL
+  serverPort: number
+  friendlyName: string
+  playlistRefreshSeconds: number
+  deviceId: string
+  deviceAuth: string
+}
+
+const DEFAULT_SERVER_PORT = 34400
+const DEFAULT_FRIENDLY_NAME = 'octotuner'
+const DEFAULT_PLAYLIST_REFRESH_SECONDS = 300
+const DEVICE_ID_PATTERN = /^[A-F0-9]{8}$/
+
+function readRequired(env: Record<string, string | undefined>, key: string): string {
+  const value = env[key]
+  if (!value) {
+    throw new Error(`${key} is required`)
+  }
+
+  return value
+}
+
+function parseUrl(env: Record<string, string | undefined>, key: string): URL {
+  const value = readRequired(env, key)
+
+  try {
+    return new URL(value)
+  } catch {
+    throw new Error(`${key} must be a valid URL`)
+  }
+}
+
+function parsePort(value: string | undefined, key: string, defaultPort: number): number {
+  if (value === undefined || value === '') {
+    return defaultPort
+  }
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(`${key} must be a valid TCP port`)
+  }
+
+  return parsed
+}
+
+function parsePositiveInt(value: string | undefined, key: string, defaultValue: number): number {
+  if (value === undefined || value === '') {
+    return defaultValue
+  }
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${key} must be a positive integer`)
+  }
+
+  return parsed
+}
+
+function normalizeDeviceId(value: string): string {
+  const deviceId = value.trim().toUpperCase()
+  if (!DEVICE_ID_PATTERN.test(deviceId)) {
+    throw new Error('HDHR_DEVICE_ID must be an 8-character hexadecimal identifier')
+  }
+
+  return deviceId
+}
+
+function portFromUrl(value: URL): number {
+  if (value.port) {
+    return Number(value.port)
+  }
+
+  return value.protocol === 'https:' ? 443 : 80
+}
+
+export function loadBridgeConfig(env: Record<string, string | undefined>): BridgeConfig {
+  const m3uUrl = parseUrl(env, 'M3U_URL')
+  const advertisedBaseUrl = parseUrl(env, 'ADVERTISED_BASE_URL')
+  const serverPort = parsePort(env.SERVER_PORT, 'SERVER_PORT', DEFAULT_SERVER_PORT)
+  const friendlyName = (env.HDHR_FRIENDLY_NAME ?? DEFAULT_FRIENDLY_NAME).trim() || DEFAULT_FRIENDLY_NAME
+  const playlistRefreshSeconds = parsePositiveInt(
+    env.PLAYLIST_REFRESH_SECONDS,
+    'PLAYLIST_REFRESH_SECONDS',
+    DEFAULT_PLAYLIST_REFRESH_SECONDS
+  )
+  const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
+  const deviceAuth = `${friendlyName}-${deviceId}`
+
+  if (serverPort !== portFromUrl(advertisedBaseUrl)) {
+    throw new Error('SERVER_PORT must match the port in ADVERTISED_BASE_URL')
+  }
+
+  return {
+    m3uUrl,
+    advertisedBaseUrl,
+    serverPort,
+    friendlyName,
+    playlistRefreshSeconds,
+    deviceId,
+    deviceAuth
+  }
+}
