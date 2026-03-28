@@ -5,9 +5,27 @@ import { createBridgeRuntime } from '../../server/lib/runtime'
 
 const dgramMock = vi.hoisted(() => {
   type Handler = (...args: any[]) => void
+  type BindImpl = (port: number, addressOrCallback?: string | (() => void), callback?: () => void) => void
+  type AddMembershipImpl = (multicastAddress: string) => void
+  type SendImpl = (
+    message: string | Uint8Array,
+    port: number,
+    address: string,
+    callback?: (error: Error | null) => void
+  ) => void
 
   function createSocketRecord() {
     const handlers = new Map<string, Set<Handler>>()
+    const record: {
+      handlers: Map<string, Set<Handler>>
+      socket: any
+      bindImpl?: BindImpl
+      addMembershipImpl?: AddMembershipImpl
+      sendImpl?: SendImpl
+    } = {
+      handlers,
+      socket: undefined
+    }
 
     const addHandler = (event: string, handler: Handler): void => {
       const listeners = handlers.get(event) ?? new Set<Handler>()
@@ -37,12 +55,28 @@ const dgramMock = vi.hoisted(() => {
         removeHandler(event, handler)
         return socket
       }),
-      bind: vi.fn((port: number, callback?: () => void) => {
-        callback?.()
+      bind: vi.fn((port: number, addressOrCallback?: string | (() => void), callback?: () => void) => {
+        record.bindImpl?.(port, addressOrCallback, callback)
+        if (record.bindImpl) {
+          return socket
+        }
+
+        if (typeof addressOrCallback === 'function') {
+          addressOrCallback()
+        } else {
+          callback?.()
+        }
         return socket
       }),
-      addMembership: vi.fn(),
-      send: vi.fn((_message: string | Uint8Array, _port: number, _address: string, callback?: (error: Error | null) => void) => {
+      addMembership: vi.fn((multicastAddress: string) => {
+        record.addMembershipImpl?.(multicastAddress)
+      }),
+      send: vi.fn((message: string | Uint8Array, port: number, address: string, callback?: (error: Error | null) => void) => {
+        record.sendImpl?.(message, port, address, callback)
+        if (record.sendImpl) {
+          return socket
+        }
+
         callback?.(null)
         return socket
       }),
@@ -51,7 +85,8 @@ const dgramMock = vi.hoisted(() => {
       })
     }
 
-    return { handlers, socket }
+    record.socket = socket
+    return record
   }
 
   const state = {
@@ -127,6 +162,30 @@ describe('createBridgeRuntime', () => {
     expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1900, expect.any(Function))
     expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
     expect(dgramMock.state.created[1]?.socket.bind).toHaveBeenCalledWith(65001, expect.any(Function))
+    expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
+    expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('cleans up the first discovery socket when real discovery startup fails on the second bind', async () => {
+    dgramMock.reset()
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const bindError = new Error('bind EADDRINUSE 0.0.0.0:65001')
+    const secondSocketRecord = dgramMock.state.queue[1]!
+
+    secondSocketRecord.bindImpl = () => {
+      secondSocketRecord.handlers.get('error')?.forEach((handler) => {
+        handler(bindError)
+      })
+    }
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: startDiscoveryServer
+    })).rejects.toThrow(/EADDRINUSE/)
+
     expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
     expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
   })

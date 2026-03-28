@@ -128,6 +128,7 @@ describe('discovery server live UDP responders', () => {
       runtime,
       undefined,
       {
+        bindAddress: '127.0.0.1',
         ssdpPort,
         hdhomerunPort,
         joinSsdpMulticast: false,
