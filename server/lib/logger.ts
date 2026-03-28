@@ -1,4 +1,10 @@
 type LogContext = Record<string, unknown> | unknown[] | string | number | boolean | null | undefined
+type LogMethod = (message?: unknown, ...optionalParams: unknown[]) => void
+type LogWriter = {
+  info: LogMethod
+  warn: LogMethod
+  error: LogMethod
+}
 
 export type Logger = {
   sink: string[]
@@ -8,6 +14,7 @@ export type Logger = {
 }
 
 const URL_IN_TEXT_PATTERN = /https?:\/\/[^\s"'<>]+/gi
+const DEFAULT_SINK_LIMIT = 200
 
 function sanitizeUrlText(value: string): string {
   return value.replace(URL_IN_TEXT_PATTERN, (candidate) => {
@@ -27,6 +34,20 @@ function sanitizeUrlText(value: string): string {
 function sanitizeValue(value: unknown): unknown {
   if (typeof value === 'string') {
     return sanitizeUrlText(value)
+  }
+
+  if (value instanceof Error) {
+    const extra = Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, sanitizeValue(entry)])
+    )
+
+    return {
+      name: value.name,
+      message: sanitizeUrlText(value.message),
+      stack: value.stack ? sanitizeUrlText(value.stack) : undefined,
+      cause: sanitizeValue(value.cause),
+      ...extra
+    }
   }
 
   if (value instanceof URL) {
@@ -59,19 +80,33 @@ function formatLogLine(message: string, context?: LogContext): string {
   return `${sanitizeUrlText(message)} ${JSON.stringify(sanitizeValue(context))}`
 }
 
-export function createLogger(): Logger {
+function appendToSink(sink: string[], line: string, sinkLimit: number): void {
+  sink.push(line)
+
+  if (sink.length > sinkLimit) {
+    sink.splice(0, sink.length - sinkLimit)
+  }
+}
+
+export function createLogger(writer: LogWriter = console, sinkLimit = DEFAULT_SINK_LIMIT): Logger {
   const sink: string[] = []
+
+  const emit = (method: keyof LogWriter, message: string, context?: LogContext): void => {
+    const line = formatLogLine(message, context)
+    appendToSink(sink, line, sinkLimit)
+    writer[method](line)
+  }
 
   return {
     sink,
     info(message, context) {
-      sink.push(formatLogLine(message, context))
+      emit('info', message, context)
     },
     error(message, context) {
-      sink.push(formatLogLine(message, context))
+      emit('error', message, context)
     },
     warn(message, context) {
-      sink.push(formatLogLine(message, context))
+      emit('warn', message, context)
     }
   }
 }

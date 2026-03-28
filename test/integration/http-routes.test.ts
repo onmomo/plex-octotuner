@@ -6,6 +6,7 @@ import { createBridgeRuntime } from '../../server/lib/runtime'
 import autoRoute from '../../server/routes/auto/[slug].get'
 import discoverRoute from '../../server/routes/discover.json.get'
 import deviceRoute from '../../server/routes/device.xml.get'
+import { buildDeviceUdn } from '../../server/routes/dri/device.xml.get'
 import driDeviceRoute from '../../server/routes/dri/device.xml.get'
 import lineupRoute from '../../server/routes/lineup.json.get'
 import lineupPostRoute from '../../server/routes/lineup.post.post'
@@ -121,6 +122,8 @@ describe('required bridge http routes', () => {
     const aliasXml = await $fetch('/device.xml')
     const driXml = await $fetch('/dri/device.xml')
     expect(aliasXml).toBe(driXml)
+    expect(aliasXml).toContain(`<UDN>${buildDeviceUdn('105A1B2C')}</UDN>`)
+    expect(aliasXml).toMatch(/<UDN>uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}<\/UDN>/)
 
     const lineupPost = await localFetch('/lineup.post', {
       method: 'POST',

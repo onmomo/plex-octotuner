@@ -23,7 +23,23 @@ describe('buildChannelIdentity', () => {
     expect(buildChannelIdentity({
       name: 'Das Erste HD',
       streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
-    }).key).toBe('name-path:das-erste-hd:/stream/channel/1')
+    }).key).toBe('name-path:das-erste-hd:/stream/channel/1?descramble=1')
+  })
+
+  it('includes the query string in fallback identities when only stream params differ', () => {
+    const first = buildChannelIdentity({
+      name: 'Das Erste HD',
+      streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
+    }).key
+
+    const second = buildChannelIdentity({
+      name: 'Das Erste HD',
+      streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=0'
+    }).key
+
+    expect(first).not.toBe(second)
+    expect(first).toContain('?descramble=1')
+    expect(second).toContain('?descramble=0')
   })
 
   it('ignores whitespace-only tvg ids and numbers after normalization', () => {
@@ -38,7 +54,7 @@ describe('buildChannelIdentity', () => {
       number: '   ',
       name: 'Das Erste HD',
       streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
-    }).key).toBe('name-path:das-erste-hd:/stream/channel/1')
+    }).key).toBe('name-path:das-erste-hd:/stream/channel/1?descramble=1')
   })
 
   it('keeps non-ascii-only metadata from collapsing into empty identities', () => {
@@ -52,8 +68,8 @@ describe('buildChannelIdentity', () => {
       streamUrl: 'http://octopus.local:8888/stream/channel/2?descramble=1'
     }).key
 
-    expect(first).toBe('path:/stream/channel/1')
-    expect(second).toBe('path:/stream/channel/2')
+    expect(first).toBe('path:/stream/channel/1?descramble=1')
+    expect(second).toBe('path:/stream/channel/2?descramble=1')
     expect(first).not.toBe(second)
   })
 })

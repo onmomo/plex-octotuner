@@ -7,7 +7,7 @@ describe('buildDeviceXml', () => {
       friendlyName: 'octotuner',
       serialNumber: '105A1B2C',
       presentationUrl: new URL('http://192.168.1.50:34400'),
-      udn: 'uuid:octotuner-105A1B2C'
+      udn: 'uuid:7ffb4fc8-1d5f-5f17-bf82-9ef8a7f5bb8a'
     }
 
     expect(buildDeviceXml(config)).toBe(`<?xml version="1.0" encoding="UTF-8"?>
@@ -23,7 +23,7 @@ describe('buildDeviceXml', () => {
     <modelName>HDHomeRun DRI</modelName>
     <modelNumber>HDTC-2US</modelNumber>
     <serialNumber>105A1B2C</serialNumber>
-    <UDN>uuid:octotuner-105A1B2C</UDN>
+    <UDN>uuid:7ffb4fc8-1d5f-5f17-bf82-9ef8a7f5bb8a</UDN>
     <presentationURL>http://192.168.1.50:34400/</presentationURL>
   </device>
 </root>
@@ -35,7 +35,7 @@ describe('buildDeviceXml', () => {
       friendlyName: 'octo & <tuner>',
       serialNumber: '105A1B2C',
       presentationUrl: new URL('http://192.168.1.50:34400'),
-      udn: 'uuid:octotuner-105A1B2C'
+      udn: 'uuid:7ffb4fc8-1d5f-5f17-bf82-9ef8a7f5bb8a'
     })
 
     expect(xml).toContain('<friendlyName>octo &amp; &lt;tuner&gt;</friendlyName>')

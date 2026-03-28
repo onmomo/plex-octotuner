@@ -10,7 +10,13 @@ function normalize(value: string): string {
 }
 
 function streamPathKey(streamUrl: string): string {
-  return new URL(streamUrl).pathname || '/'
+  const url = new URL(streamUrl)
+  const pathname = url.pathname || '/'
+  const query = new URLSearchParams(url.searchParams)
+  query.sort()
+  const queryString = query.toString()
+
+  return queryString ? `${pathname}?${queryString}` : pathname
 }
 
 function hashIdentity(key: string): ChannelIdentity {
