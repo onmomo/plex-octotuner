@@ -33,6 +33,15 @@ type StartupNotifyOptions = {
   send: DiscoverySend
 }
 
+export type DiscoveryServerOptions = {
+  bindAddress?: string
+  ssdpPort?: number
+  hdhomerunPort?: number
+  ssdpMulticastHost?: string
+  joinSsdpMulticast?: boolean
+  startupNotify?: boolean
+}
+
 function parseSsdpHeaders(message: Buffer): Map<string, string> | null {
   const lines = message.toString('utf8').split('\r\n')
   if (lines.length === 0 || lines[0]?.trim().toUpperCase() !== 'M-SEARCH * HTTP/1.1') {
@@ -74,7 +83,7 @@ function isHdhomerunDiscoveryRequest(message: Buffer): boolean {
   return packetType === HDHOMERUN_TYPE_DISCOVER_REQ && message.length >= 4 + payloadLength + 4
 }
 
-function bindSocket(socket: Socket, port: number): Promise<void> {
+function bindSocket(socket: Socket, port: number, address?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const onError = (error: Error) => {
       socket.off('error', onError)
@@ -82,10 +91,17 @@ function bindSocket(socket: Socket, port: number): Promise<void> {
     }
 
     socket.once('error', onError)
-    socket.bind(port, () => {
+    const onBound = () => {
       socket.off('error', onError)
       resolve()
-    })
+    }
+
+    if (address === undefined) {
+      socket.bind(port, onBound)
+      return
+    }
+
+    socket.bind(port, address, onBound)
   })
 }
 
@@ -214,22 +230,33 @@ function registerSocketCleanup(socket: Socket, registerCleanup: (cleanup: Cleanu
 
 export async function startDiscoveryServer(
   runtime: BridgeRuntime,
-  registerCleanup: (cleanup: CleanupRegistration) => void = () => {}
+  registerCleanup: (cleanup: CleanupRegistration) => void = () => {},
+  options: DiscoveryServerOptions = {}
 ): Promise<DiscoveryHandle> {
+  const ssdpPort = options.ssdpPort ?? SSDP_MULTICAST_PORT
+  const hdhomerunPort = options.hdhomerunPort ?? HDHOMERUN_DISCOVERY_PORT
+  const ssdpMulticastHost = options.ssdpMulticastHost ?? SSDP_MULTICAST_HOST
+  const joinSsdpMulticast = options.joinSsdpMulticast ?? true
+  const startupNotify = options.startupNotify ?? true
+
   const ssdpSocket = createSocket({ type: UDP4_SOCKET_TYPE, reuseAddr: true })
   registerSocketCleanup(ssdpSocket, registerCleanup)
-  await bindSocket(ssdpSocket, SSDP_MULTICAST_PORT)
-  ssdpSocket.addMembership(SSDP_MULTICAST_HOST)
+  await bindSocket(ssdpSocket, ssdpPort, options.bindAddress)
+  if (joinSsdpMulticast) {
+    ssdpSocket.addMembership(ssdpMulticastHost)
+  }
 
   const hdhomerunSocket = createSocket(UDP4_SOCKET_TYPE)
   registerSocketCleanup(hdhomerunSocket, registerCleanup)
-  await bindSocket(hdhomerunSocket, HDHOMERUN_DISCOVERY_PORT)
+  await bindSocket(hdhomerunSocket, hdhomerunPort, options.bindAddress)
 
   attachSocketHandlers(runtime, ssdpSocket, hdhomerunSocket)
-  await sendStartupNotify({
-    config: runtime.config,
-    send: (message, address, port) => sendOnSocket(ssdpSocket, message, address, port)
-  })
+  if (startupNotify) {
+    await sendStartupNotify({
+      config: runtime.config,
+      send: (message, address, port) => sendOnSocket(ssdpSocket, message, address, port)
+    })
+  }
 
   let stopPromise: Promise<void> | undefined
 

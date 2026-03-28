@@ -152,6 +152,10 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
   let stopRefreshLoop: (() => Promise<void>) | undefined
   let stopRequested = false
   const startupCleanups: CleanupRegistration[] = []
+  let resolveDiscoveryHandle: (handle: DiscoveryHandle | undefined) => void = () => {}
+  const discoveryHandleReady = new Promise<DiscoveryHandle | undefined>((resolve) => {
+    resolveDiscoveryHandle = resolve
+  })
 
   const registerCleanup = (cleanup: CleanupRegistration): void => {
     startupCleanups.push(cleanup)
@@ -168,7 +172,7 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
       if (!stopPromise) {
         stopPromise = Promise.resolve().then(async () => {
           await stopRefreshLoop?.()
-          await discoveryHandle?.stop()
+          await (await discoveryHandleReady)?.stop()
         })
       }
 
@@ -180,7 +184,9 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
     try {
       discoveryHandle = await options.startDiscovery(runtime, registerCleanup)
       startupCleanups.length = 0
+      resolveDiscoveryHandle(discoveryHandle)
     } catch (error) {
+      resolveDiscoveryHandle(undefined)
       for (const cleanup of startupCleanups.reverse()) {
         try {
           await cleanup()
@@ -190,6 +196,8 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
       }
       throw error
     }
+  } else {
+    resolveDiscoveryHandle(undefined)
   }
 
   if (!stopRequested) {

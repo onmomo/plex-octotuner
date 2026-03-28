@@ -94,6 +94,18 @@ const validEnv = {
   HDHR_DEVICE_ID: '105A1B2C'
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+
+  return { promise, resolve, reject }
+}
+
 describe('createBridgeRuntime', () => {
   it('starts and stops the real discovery server within the runtime lifecycle', async () => {
     dgramMock.reset()
@@ -232,6 +244,36 @@ describe('createBridgeRuntime', () => {
     await runtime.stop()
     await runtime.stop()
 
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops the eventual discovery handle when stop is requested during discovery startup', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const startupGate = createDeferred<void>()
+    const stop = vi.fn(async () => {})
+    let stopDuringStartup: Promise<void> | undefined
+
+    const runtimePromise = createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (nextRuntime) => {
+        stopDuringStartup = nextRuntime.stop()
+        await startupGate.promise
+        return { stop }
+      }
+    })
+
+    await Promise.resolve()
+    startupGate.resolve()
+
+    const runtime = await runtimePromise
+    await stopDuringStartup
+
+    expect(stop).toHaveBeenCalledTimes(1)
+
+    await runtime.stop()
     expect(stop).toHaveBeenCalledTimes(1)
   })
 
