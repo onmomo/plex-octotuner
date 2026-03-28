@@ -26,6 +26,10 @@ function readRequired(env: Record<string, string | undefined>, key: string): str
 function parseUrl(env: Record<string, string | undefined>, key: string): URL {
   const value = readRequired(env, key)
 
+  if (value.trim() !== value) {
+    throw new Error(`${key} must not contain leading or trailing whitespace`)
+  }
+
   let parsed: URL
   try {
     parsed = new URL(value)
@@ -43,6 +47,16 @@ function parseUrl(env: Record<string, string | undefined>, key: string): URL {
 function requireExplicitPort(value: URL, key: string): void {
   if (!value.port) {
     throw new Error(`${key} must include an explicit port`)
+  }
+}
+
+function requireOriginOnlyBaseUrl(value: URL, key: string): void {
+  if (value.username || value.password) {
+    throw new Error(`${key} must not include credentials`)
+  }
+
+  if (value.pathname !== '/' || value.search !== '' || value.hash !== '') {
+    throw new Error(`${key} must be an origin-only URL`)
   }
 }
 
@@ -109,6 +123,7 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
   const m3uUrl = parseUrl(env, 'M3U_URL')
   const advertisedBaseUrl = parseUrl(env, 'ADVERTISED_BASE_URL')
   requireExplicitPort(advertisedBaseUrl, 'ADVERTISED_BASE_URL')
+  requireOriginOnlyBaseUrl(advertisedBaseUrl, 'ADVERTISED_BASE_URL')
   const serverPort = parsePort(env.SERVER_PORT, 'SERVER_PORT', DEFAULT_SERVER_PORT)
   const friendlyName = (env.HDHR_FRIENDLY_NAME ?? DEFAULT_FRIENDLY_NAME).trim() || DEFAULT_FRIENDLY_NAME
   const playlistRefreshSeconds = parsePositiveInt(

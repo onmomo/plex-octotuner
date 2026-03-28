@@ -63,6 +63,20 @@ describe('loadBridgeConfig', () => {
     })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
+  it('rejects non-origin advertised base urls', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://user:pass@192.168.1.50:34400/path?token=secret#frag',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/ADVERTISED_BASE_URL/)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: ' http://192.168.1.50:34400 ',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/ADVERTISED_BASE_URL/)
+  })
+
   it('rejects unsupported url schemes', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'ftp://octopus.local/playlist.m3u',
