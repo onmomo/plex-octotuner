@@ -22,7 +22,7 @@ Build a headless Nuxt 4 service that runs on the same LAN as Plex and an octopus
 
 ## Runtime Model
 
-The service is a single Nuxt 4 application using Nitro for the server runtime. It runs as one container on the same LAN as Plex. Configuration is provided exclusively through environment variables, including the M3U source URL, advertised device identity, advertised base URL overrides when needed, tuner count, and playlist refresh interval.
+The service is a single Nuxt 4 application using Nitro for the server runtime. It runs as one container on the same LAN as Plex. Configuration is provided exclusively through environment variables, including the M3U source URL, advertised device identity, the mandatory advertised base URL Plex should use, tuner count, and playlist refresh interval.
 
 At startup, the service validates configuration, fetches the M3U playlist, parses channels into an in-memory normalized model, and starts both HTTP handling and HDHomeRun discovery handling. If the initial playlist fetch fails, the service exits with an error so container restart behavior surfaces the issue immediately.
 
@@ -36,19 +36,24 @@ This layer reads environment variables and validates them into a typed runtime c
 - `ADVERTISED_BASE_URL`
 - `HDHR_TUNER_COUNT` with default `4`
 - `PLAYLIST_REFRESH_SECONDS` with default `300`
-- `HDHR_FRIENDLY_NAME`
+- `HDHR_FRIENDLY_NAME` with default `octotuner`
 - `HDHR_DEVICE_ID`
 - `HDHR_DEVICE_AUTH` with stable default derived from `HDHR_DEVICE_ID`
-- `SERVER_PORT`
+- `SERVER_PORT` with default `34400`
 
 V1 configuration rules are intentionally strict:
 
 - `M3U_URL` is mandatory
 - `ADVERTISED_BASE_URL` is mandatory and must be the exact LAN-reachable base URL Plex should use, including scheme, host or IP, and port
+- `ADVERTISED_BASE_URL` must match the effective externally reachable HTTP port, which defaults to `34400` when `SERVER_PORT` is not set
+- if the port in `ADVERTISED_BASE_URL` differs from `SERVER_PORT`, startup fails in v1
 - `HDHR_DEVICE_ID` is mandatory and must be a valid 8-character HDHomeRun-style uppercase hexadecimal device ID
 - `HDHR_DEVICE_ID` must be unique on the local network; the service does not auto-generate or persist a fallback in v1
 - `HDHR_DEVICE_AUTH` defaults to `octotuner-<HDHR_DEVICE_ID>` when omitted
-- `SERVER_PORT` controls the Nitro bind port, but `ADVERTISED_BASE_URL` is the source of truth for what gets emitted in discovery and lineup payloads
+- `HDHR_FRIENDLY_NAME` defaults to `octotuner` when omitted for single-instance deployments; multi-instance deployments must override it
+- `HDHR_TUNER_COUNT` defaults to `4` when omitted
+- `PLAYLIST_REFRESH_SECONDS` defaults to `300` when omitted
+- `SERVER_PORT` defaults to `34400` when omitted and controls the Nitro bind port, but `ADVERTISED_BASE_URL` is the source of truth for what gets emitted in discovery and lineup payloads
 
 Invalid config should fail fast during startup with actionable log output.
 
