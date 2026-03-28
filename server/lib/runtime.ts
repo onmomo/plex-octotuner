@@ -126,7 +126,11 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
       startupCleanups.length = 0
     } catch (error) {
       for (const cleanup of startupCleanups.reverse()) {
-        await cleanup()
+        try {
+          await cleanup()
+        } catch (cleanupError) {
+          options.logger.error('discovery startup cleanup failed', cleanupError)
+        }
       }
       throw error
     }

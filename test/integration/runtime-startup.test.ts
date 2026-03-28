@@ -173,4 +173,58 @@ describe('createBridgeRuntime', () => {
 
     expect(cleanup).toHaveBeenCalledTimes(1)
   })
+
+  it('runs multiple partial-startup cleanups in reverse order', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const cleanupOrder: string[] = []
+    const startError = new Error('discovery failed after multiple allocations')
+    const cleanupOne = vi.fn(async () => {
+      cleanupOrder.push('one')
+    })
+    const cleanupTwo = vi.fn(async () => {
+      cleanupOrder.push('two')
+    })
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (_runtime, registerCleanup) => {
+        registerCleanup(cleanupOne)
+        registerCleanup(cleanupTwo)
+        throw startError
+      }
+    })).rejects.toThrow(/discovery failed after multiple allocations/)
+
+    expect(cleanupOrder).toEqual(['two', 'one'])
+  })
+
+  it('keeps the original discovery startup error when a cleanup callback also throws', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const cleanupOrder: string[] = []
+    const startError = new Error('original discovery startup failure')
+    const cleanupError = new Error('cleanup failed')
+    const firstCleanup = vi.fn(async () => {
+      cleanupOrder.push('first')
+    })
+    const secondCleanup = vi.fn(async () => {
+      cleanupOrder.push('second')
+      throw cleanupError
+    })
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (_runtime, registerCleanup) => {
+        registerCleanup(firstCleanup)
+        registerCleanup(secondCleanup)
+        throw startError
+      }
+    })).rejects.toThrow(/original discovery startup failure/)
+
+    expect(cleanupOrder).toEqual(['second', 'first'])
+  })
 })
