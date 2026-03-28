@@ -3,10 +3,12 @@ import { loadBridgeConfig } from '../../../server/lib/config'
 import { buildHdhomerunDiscoveryReply } from '../../../server/lib/discovery/hdhomerun-packets'
 
 const HDHOMERUN_TYPE_DISCOVER_RPY = 0x0003
+const HDHOMERUN_TAG_DEVICE_TYPE = 0x01
 const HDHOMERUN_TAG_DEVICE_ID = 0x02
 const HDHOMERUN_TAG_TUNER_COUNT = 0x10
 const HDHOMERUN_TAG_LINEUP_URL = 0x27
 const HDHOMERUN_TAG_BASE_URL = 0x2A
+const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 
 const config = loadBridgeConfig({
   M3U_URL: 'http://octopus.local/playlist.m3u',
@@ -34,7 +36,7 @@ function decodeTags(packet: Buffer) {
   expect(packet.readUInt16BE(0)).toBe(HDHOMERUN_TYPE_DISCOVER_RPY)
 
   const payloadLength = packet.readUInt16BE(2)
-  expect(packet.length).toBeGreaterThanOrEqual(4 + payloadLength)
+  expect(packet.length).toBe(4 + payloadLength + 4)
 
   const decoded: Record<string, string | number> = {}
   let offset = 4
@@ -47,6 +49,9 @@ function decodeTags(packet: Buffer) {
     const value = packet.subarray(valueOffset, valueOffset + lengthInfo.value)
 
     switch (tag) {
+      case HDHOMERUN_TAG_DEVICE_TYPE:
+        decoded.DeviceType = value.readUInt32BE(0)
+        break
       case HDHOMERUN_TAG_DEVICE_ID:
         decoded.DeviceID = value.toString('hex').toUpperCase()
         break
@@ -67,15 +72,39 @@ function decodeTags(packet: Buffer) {
   return decoded
 }
 
+function calculateCrc32(data: Buffer): number {
+  let crc = 0xFFFFFFFF
+
+  for (const byte of data) {
+    crc ^= byte
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((crc & 1) !== 0) {
+        crc = (crc >>> 1) ^ 0xEDB88320
+      } else {
+        crc >>>= 1
+      }
+    }
+  }
+
+  return (crc ^ 0xFFFFFFFF) >>> 0
+}
+
 describe('buildHdhomerunDiscoveryReply', () => {
-  it('encodes the advertised discovery fields with HDHomeRun TLV framing', () => {
+  it('encodes the advertised discovery fields with a complete HDHomeRun frame and CRC trailer', () => {
     const packet = buildHdhomerunDiscoveryReply(config)
+    const payloadLength = packet.readUInt16BE(2)
+    const trailerOffset = packet.length - 4
 
     expect(decodeTags(packet)).toMatchObject({
+      DeviceType: HDHOMERUN_DEVICE_TYPE_TUNER,
       DeviceID: '105A1B2C',
       BaseURL: 'http://192.168.1.50:34400',
       LineupURL: 'http://192.168.1.50:34400/lineup.json',
       TunerCount: 4
     })
+    expect(payloadLength).toBe(81)
+    expect(packet.length).toBe(89)
+    expect(packet.readUInt32LE(trailerOffset)).toBe(calculateCrc32(packet.subarray(0, trailerOffset)))
   })
 })
