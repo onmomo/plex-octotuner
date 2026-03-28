@@ -1,0 +1,20 @@
+{
+  "name": "plex-octotuner",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.6.0",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "nuxt": "^4.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "^3.17.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
