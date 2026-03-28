@@ -46,13 +46,14 @@ describe('ChannelStore', () => {
     const store = new ChannelStore()
 
     store.replaceFromRaw(samplePlaylist)
-    const firstId = store.getChannels()[0]?.identity.key
+    const survivingChannel = store.getChannels().find((channel) => channel.name === 'Das Erste HD')
+    const firstId = survivingChannel?.identity.key
 
     await store.refresh(async () => sampleUpdatedPlaylist)
     expect(store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
 
     await store.refresh(() => samplePlaylist)
-    expect(store.getChannels()[0]?.identity.key).toBe(firstId)
+    expect(store.getChannels().find((channel) => channel.name === 'Das Erste HD')?.identity.key).toBe(firstId)
   })
 
   it('keeps the last good lineup when a refresh fails', async () => {
