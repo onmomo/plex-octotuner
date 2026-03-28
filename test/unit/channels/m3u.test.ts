@@ -6,10 +6,26 @@ const samplePlaylist = readFileSync(new URL('../../fixtures/m3u/sample.m3u', imp
 const invalidOnlyPlaylist = readFileSync(new URL('../../fixtures/m3u/invalid-only.m3u', import.meta.url), 'utf8')
 
 describe('parseM3U', () => {
-  it('parses valid channels, filters duplicates, and preserves stream urls', () => {
+  it('normalizes output order by numeric number first and then name', () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 
-    expect(parseM3U(samplePlaylist, { logger })).toEqual([
+    expect(parseM3U(samplePlaylist, { logger }).map((channel) => ({
+      number: channel.number,
+      name: channel.name
+    }))).toEqual([
+      { number: '101', name: 'Das Erste HD' },
+      { number: '103', name: 'ZDF HD' },
+      { number: undefined, name: 'alpha Channel' },
+      { number: undefined, name: 'Zulu Channel' }
+    ])
+  })
+
+  it('keeps the ordered first duplicate instead of the first playlist duplicate', () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+
+    const channels = parseM3U(samplePlaylist, { logger })
+
+    expect(channels).toEqual([
       expect.objectContaining({
         number: '101',
         name: 'Das Erste HD',
@@ -18,8 +34,14 @@ describe('parseM3U', () => {
         streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
       }),
       expect.objectContaining({
-        number: '102',
+        number: '103',
         name: 'ZDF HD'
+      }),
+      expect.objectContaining({
+        name: 'alpha Channel'
+      }),
+      expect.objectContaining({
+        name: 'Zulu Channel'
       })
     ])
 

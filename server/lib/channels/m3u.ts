@@ -11,8 +11,44 @@ type PendingChannel = {
 }
 
 type ParsedExtInf = Omit<PendingChannel, 'lineNumber'>
+type ParsedChannel = Channel & {
+  lineNumber: number
+}
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:'])
+
+function hasNumericGuideNumber(value: string | undefined): value is string {
+  return value !== undefined && /^\d+$/.test(value)
+}
+
+function compareCaseInsensitive(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { sensitivity: 'base' })
+}
+
+function compareParsedChannels(left: ParsedChannel, right: ParsedChannel): number {
+  const leftHasNumber = hasNumericGuideNumber(left.number)
+  const rightHasNumber = hasNumericGuideNumber(right.number)
+
+  if (leftHasNumber && rightHasNumber) {
+    const numberDiff = Number(left.number) - Number(right.number)
+    if (numberDiff !== 0) {
+      return numberDiff
+    }
+
+    return compareCaseInsensitive(left.identity.key, right.identity.key)
+  }
+
+  if (leftHasNumber !== rightHasNumber) {
+    return leftHasNumber ? -1 : 1
+  }
+
+  const nameDiff = compareCaseInsensitive(left.name, right.name)
+  if (nameDiff !== 0) {
+    return nameDiff
+  }
+
+  return compareCaseInsensitive(left.identity.key, right.identity.key)
+}
 
 function parseAttributes(value: string): Record<string, string> {
   const attributes: Record<string, string> = {}
@@ -81,8 +117,7 @@ function buildChannel(pending: PendingChannel, streamUrl: string): Channel {
 }
 
 export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] {
-  const channels: Channel[] = []
-  const seen = new Set<string>()
+  const channels: ParsedChannel[] = []
   let pending: PendingChannel | null = null
 
   const finalizePending = (streamUrl: string): void => {
@@ -91,12 +126,10 @@ export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] 
     }
 
     const channel = buildChannel(pending, streamUrl)
-    if (seen.has(channel.identity.key)) {
-      options.logger.warn(`dropped duplicate channel at line ${pending.lineNumber}: ${channel.identity.key}`)
-    } else {
-      seen.add(channel.identity.key)
-      channels.push(channel)
-    }
+    channels.push({
+      ...channel,
+      lineNumber: pending.lineNumber
+    })
 
     pending = null
   }
@@ -155,5 +188,27 @@ export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] 
 
   dropPending('missing stream url')
 
-  return channels
+  channels.sort(compareParsedChannels)
+
+  const orderedChannels: Channel[] = []
+  const seen = new Set<string>()
+  for (const channel of channels) {
+    if (seen.has(channel.identity.key)) {
+      options.logger.warn(`dropped duplicate channel at line ${channel.lineNumber}: ${channel.identity.key}`)
+      continue
+    }
+
+    seen.add(channel.identity.key)
+    orderedChannels.push({
+      identity: channel.identity,
+      tvgId: channel.tvgId,
+      number: channel.number,
+      name: channel.name,
+      logoUrl: channel.logoUrl,
+      groupTitle: channel.groupTitle,
+      streamUrl: channel.streamUrl
+    })
+  }
+
+  return orderedChannels
 }
