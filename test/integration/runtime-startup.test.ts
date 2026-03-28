@@ -13,7 +13,7 @@ const validEnv = {
 
 describe('createBridgeRuntime', () => {
   it('loads startup config and initial channels', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 
     const runtime = await createBridgeRuntime({
       env: validEnv,
@@ -32,12 +32,13 @@ describe('createBridgeRuntime', () => {
     ])
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('bridge startup config'))
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('loaded 6 channels'))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('dropped duplicate channel'))
 
     await runtime.stop()
   })
 
   it('fails fast on invalid config before fetching the playlist', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
     const fetchPlaylist = vi.fn(async () => samplePlaylist)
 
     await expect(createBridgeRuntime({
@@ -50,7 +51,7 @@ describe('createBridgeRuntime', () => {
   })
 
   it('logs and surfaces initial playlist fetch failures', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 
     await expect(createBridgeRuntime({
       env: validEnv,
@@ -65,7 +66,7 @@ describe('createBridgeRuntime', () => {
   })
 
   it('fails startup when the initial playlist produces zero valid channels', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 
     await expect(createBridgeRuntime({
       env: validEnv,
@@ -76,7 +77,7 @@ describe('createBridgeRuntime', () => {
   })
 
   it('fails startup when the configured device id collides on the local network', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 
     await expect(createBridgeRuntime({
       env: validEnv,
@@ -87,7 +88,7 @@ describe('createBridgeRuntime', () => {
   })
 
   it('logs and aborts startup when the device id probe throws', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() }
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
     const probeError = new Error('bind EPERM 0.0.0.0')
 
     await expect(createBridgeRuntime({
@@ -100,5 +101,57 @@ describe('createBridgeRuntime', () => {
     })).rejects.toThrow(/bind EPERM/)
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('device id collision probe failed'), probeError)
+  })
+
+  it('passes the created runtime into discovery startup and stop delegates safely', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const stop = vi.fn(async () => {})
+    let startedRuntime: Awaited<ReturnType<typeof createBridgeRuntime>> | undefined
+
+    const runtime = await createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (nextRuntime) => {
+        startedRuntime = nextRuntime
+        return { stop }
+      }
+    })
+
+    expect(startedRuntime).toBe(runtime)
+    expect(startedRuntime?.store.getChannels()).toHaveLength(6)
+
+    await runtime.stop()
+    await runtime.stop()
+
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces discovery startup failures after runtime setup is assembled', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const startError = new Error('discovery failed')
+    const seenRuntime = vi.fn()
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (runtime) => {
+        seenRuntime({
+          deviceId: runtime.config.deviceId,
+          channelCount: runtime.store.getChannels().length,
+          logger: runtime.logger
+        })
+        throw startError
+      }
+    })).rejects.toThrow(/discovery failed/)
+
+    expect(seenRuntime).toHaveBeenCalledWith({
+      deviceId: '105A1B2C',
+      channelCount: 6,
+      logger
+    })
   })
 })

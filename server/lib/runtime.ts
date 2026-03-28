@@ -11,6 +11,7 @@ type DiscoveryHandle = {
 export type BridgeLogger = {
   info(message: string, context?: unknown): void
   error(message: string, error?: unknown): void
+  warn?(message: string, context?: unknown): void
 }
 
 export interface BridgeRuntime {
@@ -38,6 +39,19 @@ function logStartupConfig(logger: BridgeLogger, config: BridgeConfig): void {
     playlistRefreshSeconds: config.playlistRefreshSeconds,
     deviceId: config.deviceId
   })}`)
+}
+
+function createStoreLogger(logger: BridgeLogger): { warn(message: string): void } {
+  return {
+    warn(message: string) {
+      if (logger.warn) {
+        logger.warn(message)
+        return
+      }
+
+      logger.error(message)
+    }
+  }
 }
 
 export async function createBridgeRuntime(options: CreateRuntimeOptions): Promise<BridgeRuntime> {
@@ -70,7 +84,7 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
     throw error
   }
 
-  const store = new ChannelStore()
+  const store = new ChannelStore(createStoreLogger(options.logger))
   store.replaceFromRaw(rawPlaylist)
 
   if (store.getChannels().length === 0) {
@@ -80,6 +94,7 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
   options.logger.info(`loaded ${store.getChannels().length} channels`)
 
   let discoveryHandle: DiscoveryHandle | undefined
+  let stopPromise: Promise<void> | undefined
 
   const runtime: BridgeRuntime = {
     config,
@@ -87,7 +102,11 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
     store,
     fetchPlaylist,
     stop: async () => {
-      await discoveryHandle?.stop()
+      if (!stopPromise) {
+        stopPromise = Promise.resolve(discoveryHandle?.stop()).then(() => {})
+      }
+
+      await stopPromise
     }
   }
 
