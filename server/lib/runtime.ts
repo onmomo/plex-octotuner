@@ -8,6 +8,8 @@ type DiscoveryHandle = {
   stop: () => Promise<void> | void
 }
 
+type CleanupRegistration = () => Promise<void> | void
+
 export type BridgeLogger = {
   info(message: string, context?: unknown): void
   error(message: string, error?: unknown): void
@@ -26,7 +28,10 @@ export interface CreateRuntimeOptions {
   env: Record<string, string | undefined>
   fetchPlaylist?: (url: URL) => Promise<string>
   logger: BridgeLogger
-  startDiscovery?: (runtime: BridgeRuntime) => Promise<DiscoveryHandle>
+  startDiscovery?: (
+    runtime: BridgeRuntime,
+    registerCleanup: (cleanup: CleanupRegistration) => void
+  ) => Promise<DiscoveryHandle>
   probeDeviceIdCollision?: (config: BridgeConfig) => Promise<boolean>
 }
 
@@ -95,6 +100,11 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
 
   let discoveryHandle: DiscoveryHandle | undefined
   let stopPromise: Promise<void> | undefined
+  const startupCleanups: CleanupRegistration[] = []
+
+  const registerCleanup = (cleanup: CleanupRegistration): void => {
+    startupCleanups.push(cleanup)
+  }
 
   const runtime: BridgeRuntime = {
     config,
@@ -111,7 +121,15 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
   }
 
   if (options.startDiscovery) {
-    discoveryHandle = await options.startDiscovery(runtime)
+    try {
+      discoveryHandle = await options.startDiscovery(runtime, registerCleanup)
+      startupCleanups.length = 0
+    } catch (error) {
+      for (const cleanup of startupCleanups.reverse()) {
+        await cleanup()
+      }
+      throw error
+    }
   }
 
   return runtime

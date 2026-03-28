@@ -154,4 +154,23 @@ describe('createBridgeRuntime', () => {
       logger
     })
   })
+
+  it('cleans up partially initialized discovery resources when startup throws before returning a handle', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const cleanup = vi.fn(async () => {})
+    const startError = new Error('discovery failed after allocation')
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (_runtime, registerCleanup) => {
+        registerCleanup(cleanup)
+        throw startError
+      }
+    })).rejects.toThrow(/discovery failed after allocation/)
+
+    expect(cleanup).toHaveBeenCalledTimes(1)
+  })
 })
