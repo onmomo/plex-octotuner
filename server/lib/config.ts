@@ -32,6 +32,12 @@ function parseUrl(env: Record<string, string | undefined>, key: string): URL {
   }
 }
 
+function requireExplicitPort(value: URL, key: string): void {
+  if (!value.port) {
+    throw new Error(`${key} must include an explicit port`)
+  }
+}
+
 function parsePort(value: string | undefined, key: string, defaultPort: number): number {
   if (value === undefined || value === '') {
     return defaultPort
@@ -78,6 +84,7 @@ function portFromUrl(value: URL): number {
 export function loadBridgeConfig(env: Record<string, string | undefined>): BridgeConfig {
   const m3uUrl = parseUrl(env, 'M3U_URL')
   const advertisedBaseUrl = parseUrl(env, 'ADVERTISED_BASE_URL')
+  requireExplicitPort(advertisedBaseUrl, 'ADVERTISED_BASE_URL')
   const serverPort = parsePort(env.SERVER_PORT, 'SERVER_PORT', DEFAULT_SERVER_PORT)
   const friendlyName = (env.HDHR_FRIENDLY_NAME ?? DEFAULT_FRIENDLY_NAME).trim() || DEFAULT_FRIENDLY_NAME
   const playlistRefreshSeconds = parsePositiveInt(
@@ -86,7 +93,7 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
     DEFAULT_PLAYLIST_REFRESH_SECONDS
   )
   const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
-  const deviceAuth = `${friendlyName}-${deviceId}`
+  const deviceAuth = (env.HDHR_DEVICE_AUTH ?? `${DEFAULT_FRIENDLY_NAME}-${deviceId}`).trim()
 
   if (serverPort !== portFromUrl(advertisedBaseUrl)) {
     throw new Error('SERVER_PORT must match the port in ADVERTISED_BASE_URL')

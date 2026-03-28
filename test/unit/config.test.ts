@@ -28,19 +28,39 @@ describe('loadBridgeConfig', () => {
     })).toThrow(/SERVER_PORT/)
   })
 
-  it('defaults DeviceAuth from DeviceID and rejects invalid ids', () => {
+  it('defaults DeviceAuth from DeviceID, honors explicit auth, and ignores friendly name', () => {
     const config = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_FRIENDLY_NAME: 'something-else'
     })
 
     expect(config.deviceAuth).toBe('octotuner-105A1B2C')
+
+    const explicitAuthConfig = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_AUTH: 'custom-auth',
+      HDHR_FRIENDLY_NAME: 'something-else'
+    })
+
+    expect(explicitAuthConfig.deviceAuth).toBe('custom-auth')
+
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
       HDHR_DEVICE_ID: 'not-valid'
     })).toThrow(/HDHR_DEVICE_ID/)
+  })
+
+  it('rejects advertised base urls without an explicit port', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
   it('redacts sensitive URLs in startup logs', () => {
