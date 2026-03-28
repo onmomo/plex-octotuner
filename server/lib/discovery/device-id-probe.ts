@@ -1,5 +1,6 @@
 import { createSocket } from 'node:dgram'
 import type { BridgeConfig } from '../config'
+import { readHdhomerunVarLength } from './hdhomerun-tlv'
 
 type DiscoveredDevice = {
   deviceId: string
@@ -34,18 +35,23 @@ function parseDeviceId(packet: Buffer): string | null {
   const limit = 4 + bodyLength
   while (offset + 2 <= limit) {
     const tag = packet[offset]
-    const length = packet[offset + 1]
-    offset += 2
+    const lengthInfo = readHdhomerunVarLength(packet, offset + 1)
+    if (!lengthInfo) {
+      return null
+    }
 
-    if (offset + length > limit) {
+    const valueOffset = offset + 1 + lengthInfo.byteLength
+    const length = lengthInfo.value
+
+    if (valueOffset + length > limit) {
       return null
     }
 
     if (tag === HDHOMERUN_TAG_DEVICE_ID && length === 4) {
-      return packet.subarray(offset, offset + length).toString('hex').toUpperCase()
+      return packet.subarray(valueOffset, valueOffset + length).toString('hex').toUpperCase()
     }
 
-    offset += length
+    offset = valueOffset + length
   }
 
   return null

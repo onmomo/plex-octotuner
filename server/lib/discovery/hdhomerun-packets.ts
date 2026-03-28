@@ -1,4 +1,5 @@
 import type { BridgeConfig } from '../config'
+import { encodeHdhomerunVarLength } from './hdhomerun-tlv'
 
 const HDHOMERUN_TYPE_DISCOVER_RPY = 0x0003
 const HDHOMERUN_TAG_DEVICE_TYPE = 0x01
@@ -8,19 +9,8 @@ const HDHOMERUN_TAG_LINEUP_URL = 0x27
 const HDHOMERUN_TAG_BASE_URL = 0x2A
 const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 
-function encodeVarLength(length: number): Buffer {
-  if (length <= 0x7F) {
-    return Buffer.from([length])
-  }
-
-  return Buffer.from([
-    (length & 0x7F) | 0x80,
-    length >> 7
-  ])
-}
-
 function encodeTag(tag: number, value: Buffer): Buffer {
-  return Buffer.concat([Buffer.from([tag]), encodeVarLength(value.length), value])
+  return Buffer.concat([Buffer.from([tag]), encodeHdhomerunVarLength(value.length), value])
 }
 
 function buildFrame(frameType: number, payload: Buffer): Buffer {

@@ -107,4 +107,17 @@ describe('buildHdhomerunDiscoveryReply', () => {
     expect(packet.length).toBe(89)
     expect(packet.readUInt32LE(trailerOffset)).toBe(calculateCrc32(packet.subarray(0, trailerOffset)))
   })
+
+  it('encodes the maximum supported tuner count without truncating the wire value', () => {
+    const maxConfig = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_TUNER_COUNT: '255'
+    })
+
+    expect(decodeTags(buildHdhomerunDiscoveryReply(maxConfig))).toMatchObject({
+      TunerCount: 255
+    })
+  })
 })

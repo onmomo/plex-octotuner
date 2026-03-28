@@ -13,6 +13,7 @@ const DEFAULT_SERVER_PORT = 34400
 const DEFAULT_FRIENDLY_NAME = 'octotuner'
 const DEFAULT_PLAYLIST_REFRESH_SECONDS = 300
 const DEFAULT_TUNER_COUNT = 4
+const HDHOMERUN_MAX_TUNER_COUNT = 255
 const DEVICE_ID_PATTERN = /^[A-F0-9]{8}$/
 const HTTP_SCHEMES = new Set(['http:', 'https:'])
 
@@ -79,7 +80,7 @@ function parsePort(value: string | undefined, key: string, defaultPort: number):
   return parsed
 }
 
-function parsePositiveInt(value: string | undefined, key: string, defaultValue: number): number {
+function parsePositiveInt(value: string | undefined, key: string, defaultValue: number, maxValue?: number): number {
   if (value === undefined || value === '') {
     return defaultValue
   }
@@ -91,6 +92,10 @@ function parsePositiveInt(value: string | undefined, key: string, defaultValue: 
   const parsed = Number(value)
   if (parsed <= 0) {
     throw new Error(`${key} must be a positive integer`)
+  }
+
+  if (maxValue !== undefined && parsed > maxValue) {
+    throw new Error(`${key} must be less than or equal to ${maxValue}`)
   }
 
   return parsed
@@ -136,7 +141,8 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
   const tunerCount = parsePositiveInt(
     env.HDHR_TUNER_COUNT,
     'HDHR_TUNER_COUNT',
-    DEFAULT_TUNER_COUNT
+    DEFAULT_TUNER_COUNT,
+    HDHOMERUN_MAX_TUNER_COUNT
   )
   const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
   const deviceAuth = env.HDHR_DEVICE_AUTH === undefined

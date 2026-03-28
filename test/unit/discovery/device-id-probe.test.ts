@@ -43,9 +43,27 @@ const validEnv = {
   HDHR_DEVICE_ID: '105A1B2C'
 }
 
-function buildDiscoveryPacket(deviceIdHex: string): Buffer {
+function encodeVarLength(length: number): Buffer {
+  if (length <= 0x7F) {
+    return Buffer.from([length])
+  }
+
+  return Buffer.from([
+    (length & 0x7F) | 0x80,
+    length >> 7
+  ])
+}
+
+function encodeTag(tag: number, value: Buffer): Buffer {
+  return Buffer.concat([Buffer.from([tag]), encodeVarLength(value.length), value])
+}
+
+function buildDiscoveryPacket(deviceIdHex: string, precedingTags: Buffer[] = []): Buffer {
   const deviceIdBytes = Buffer.from(deviceIdHex, 'hex')
-  const body = Buffer.concat([Buffer.from([0x02, 0x04]), deviceIdBytes])
+  const body = Buffer.concat([
+    ...precedingTags,
+    encodeTag(0x02, deviceIdBytes)
+  ])
   const header = Buffer.from([0x00, 0x03, 0x00, body.length])
   return Buffer.concat([header, body])
 }
@@ -59,6 +77,12 @@ describe('parseDeviceId', () => {
     const packet = Buffer.from([0x00, 0x03, 0x00, 0x06, 0x02, 0x04, 0x10, 0x5A])
 
     expect(parseDeviceId(packet)).toBeNull()
+  })
+
+  it('extracts a device id after a preceding tag that uses a multi-byte var-length field', () => {
+    const longBaseUrlTag = encodeTag(0x2A, Buffer.alloc(130, 0x61))
+
+    expect(parseDeviceId(buildDiscoveryPacket('105A1B2C', [longBaseUrlTag]))).toBe('105A1B2C')
   })
 })
 

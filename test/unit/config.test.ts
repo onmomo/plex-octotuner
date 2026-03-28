@@ -38,6 +38,24 @@ describe('loadBridgeConfig', () => {
     })).toThrow(/HDHR_TUNER_COUNT/)
   })
 
+  it('rejects tuner counts that cannot fit in the HDHomeRun discovery wire format', () => {
+    const maxConfig = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_TUNER_COUNT: '255'
+    })
+
+    expect(maxConfig.tunerCount).toBe(255)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_TUNER_COUNT: '256'
+    })).toThrow(/HDHR_TUNER_COUNT/)
+  })
+
   it('rejects mismatched advertised and bind ports', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
