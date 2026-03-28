@@ -12,6 +12,7 @@ const DEFAULT_SERVER_PORT = 34400
 const DEFAULT_FRIENDLY_NAME = 'octotuner'
 const DEFAULT_PLAYLIST_REFRESH_SECONDS = 300
 const DEVICE_ID_PATTERN = /^[A-F0-9]{8}$/
+const HTTP_SCHEMES = new Set(['http:', 'https:'])
 
 function readRequired(env: Record<string, string | undefined>, key: string): string {
   const value = env[key]
@@ -25,11 +26,18 @@ function readRequired(env: Record<string, string | undefined>, key: string): str
 function parseUrl(env: Record<string, string | undefined>, key: string): URL {
   const value = readRequired(env, key)
 
+  let parsed: URL
   try {
-    return new URL(value)
+    parsed = new URL(value)
   } catch {
     throw new Error(`${key} must be a valid URL`)
   }
+
+  if (!HTTP_SCHEMES.has(parsed.protocol)) {
+    throw new Error(`${key} must use http or https`)
+  }
+
+  return parsed
 }
 
 function requireExplicitPort(value: URL, key: string): void {
@@ -43,8 +51,12 @@ function parsePort(value: string | undefined, key: string, defaultPort: number):
     return defaultPort
   }
 
+  if (!/^(0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`${key} must be a plain decimal integer`)
+  }
+
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+  if (parsed < 1 || parsed > 65535) {
     throw new Error(`${key} must be a valid TCP port`)
   }
 
@@ -56,8 +68,12 @@ function parsePositiveInt(value: string | undefined, key: string, defaultValue: 
     return defaultValue
   }
 
+  if (!/^(0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`${key} must be a plain decimal integer`)
+  }
+
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (parsed <= 0) {
     throw new Error(`${key} must be a positive integer`)
   }
 
@@ -81,6 +97,14 @@ function portFromUrl(value: URL): number {
   return value.protocol === 'https:' ? 443 : 80
 }
 
+function parseDeviceAuth(value: string): string {
+  if (value.trim() === '') {
+    throw new Error('HDHR_DEVICE_AUTH must not be blank')
+  }
+
+  return value
+}
+
 export function loadBridgeConfig(env: Record<string, string | undefined>): BridgeConfig {
   const m3uUrl = parseUrl(env, 'M3U_URL')
   const advertisedBaseUrl = parseUrl(env, 'ADVERTISED_BASE_URL')
@@ -93,7 +117,9 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
     DEFAULT_PLAYLIST_REFRESH_SECONDS
   )
   const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
-  const deviceAuth = (env.HDHR_DEVICE_AUTH ?? `${DEFAULT_FRIENDLY_NAME}-${deviceId}`).trim()
+  const deviceAuth = env.HDHR_DEVICE_AUTH === undefined
+    ? `${DEFAULT_FRIENDLY_NAME}-${deviceId}`
+    : parseDeviceAuth(env.HDHR_DEVICE_AUTH)
 
   if (serverPort !== portFromUrl(advertisedBaseUrl)) {
     throw new Error('SERVER_PORT must match the port in ADVERTISED_BASE_URL')

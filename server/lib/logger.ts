@@ -11,10 +11,13 @@ function sanitizeUrlText(value: string): string {
   return value.replace(URL_IN_TEXT_PATTERN, (candidate) => {
     try {
       const url = new URL(candidate)
+      url.username = ''
+      url.password = ''
       url.search = ''
+      url.hash = ''
       return url.toString()
     } catch {
-      return candidate.split('?')[0]
+      return candidate.split(/[?#]/)[0]
     }
   })
 }
@@ -26,7 +29,10 @@ function sanitizeValue(value: unknown): unknown {
 
   if (value instanceof URL) {
     const url = new URL(value.toString())
+    url.username = ''
+    url.password = ''
     url.search = ''
+    url.hash = ''
     return url.toString()
   }
 

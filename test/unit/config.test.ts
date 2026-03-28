@@ -63,6 +63,61 @@ describe('loadBridgeConfig', () => {
     })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
+  it('rejects unsupported url schemes', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'ftp://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/M3U_URL/)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'ftp://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/ADVERTISED_BASE_URL/)
+  })
+
+  it('rejects non-strict numeric env values', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      SERVER_PORT: '0x10',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/SERVER_PORT/)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      PLAYLIST_REFRESH_SECONDS: '1e3',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/PLAYLIST_REFRESH_SECONDS/)
+
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      SERVER_PORT: ' 3000 ',
+      HDHR_DEVICE_ID: '105A1B2C'
+    })).toThrow(/SERVER_PORT/)
+  })
+
+  it('rejects blank device auth overrides and accepts explicit non-empty auth', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_AUTH: '   '
+    })).toThrow(/HDHR_DEVICE_AUTH/)
+
+    const config = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_AUTH: 'custom-auth'
+    })
+
+    expect(config.deviceAuth).toBe('custom-auth')
+  })
+
   it('redacts sensitive URLs in startup logs', () => {
     const logger = createLogger()
     logger.info('bridge startup config', {
@@ -72,5 +127,17 @@ describe('loadBridgeConfig', () => {
 
     expect(logger.sink[0]).not.toContain('token=secret')
     expect(logger.sink[0]).not.toContain('descramble=1')
+  })
+
+  it('redacts embedded credentials and fragments in startup logs', () => {
+    const logger = createLogger()
+    logger.info('bridge startup config', {
+      m3uUrl: 'http://user:pass@octopus.local/playlist.m3u#token',
+      upstreamUrl: 'https://octopus.local/stream/channel/1?descramble=1#secret'
+    })
+
+    expect(logger.sink[0]).not.toContain('user:pass@')
+    expect(logger.sink[0]).not.toContain('#token')
+    expect(logger.sink[0]).not.toContain('#secret')
   })
 })
