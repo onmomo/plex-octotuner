@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildLineup } from '../../../server/lib/hdhr/lineup'
+import { buildLineup, type LineupInput } from '../../../server/lib/hdhr/lineup'
 import { buildLineupStatus } from '../../../server/lib/hdhr/lineup-status'
 
 describe('buildLineup', () => {
   it('serializes normalized channels into HDHomeRun lineup entries', () => {
-    const channels = [
+    const channels: LineupInput[] = [
       {
         id: '2f8c4d9a3e10',
         number: '101',
@@ -24,7 +24,7 @@ describe('buildLineup', () => {
 
 describe('buildLineupStatus', () => {
   it('serializes the static no-scan lineup status contract', () => {
-    expect(buildLineupStatus()).toEqual({
+    expect(buildLineupStatus()).toStrictEqual({
       ScanInProgress: 0,
       ScanPossible: 0,
       Source: 'Cable',

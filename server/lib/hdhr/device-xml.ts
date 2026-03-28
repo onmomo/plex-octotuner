@@ -1,8 +1,7 @@
+import { HDHR_DEVICE_PROFILE } from './profile'
+
 export type DeviceXmlInput = {
   friendlyName: string
-  manufacturer: string
-  modelName: string
-  modelNumber: string
   serialNumber: string
   presentationUrl: URL
   udn: string
@@ -29,9 +28,9 @@ export function buildDeviceXml(input: DeviceXmlInput) {
   <device>
     <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
     <friendlyName>${escapeXml(input.friendlyName)}</friendlyName>
-    <manufacturer>${escapeXml(input.manufacturer)}</manufacturer>
-    <modelName>${escapeXml(input.modelName)}</modelName>
-    <modelNumber>${escapeXml(input.modelNumber)}</modelNumber>
+    <manufacturer>${escapeXml(HDHR_DEVICE_PROFILE.manufacturer)}</manufacturer>
+    <modelName>${escapeXml(HDHR_DEVICE_PROFILE.modelName)}</modelName>
+    <modelNumber>${escapeXml(HDHR_DEVICE_PROFILE.modelNumber)}</modelNumber>
     <serialNumber>${escapeXml(input.serialNumber)}</serialNumber>
     <UDN>${escapeXml(input.udn)}</UDN>
     <presentationURL>${escapeXml(presentationUrl)}</presentationURL>
