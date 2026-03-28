@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChannelStore } from '../../../server/lib/channels/store'
 
 const samplePlaylist = readFileSync(new URL('../../fixtures/m3u/sample.m3u', import.meta.url), 'utf8')
+const sampleUpdatedPlaylist = readFileSync(new URL('../../fixtures/m3u/sample-updated.m3u', import.meta.url), 'utf8')
 
 describe('ChannelStore', () => {
   it('replaces channels from parsed raw playlist data', () => {
@@ -39,5 +40,30 @@ describe('ChannelStore', () => {
     store.replaceFromRaw(samplePlaylist)
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('dropped duplicate channel'))
+  })
+
+  it('refreshes to a validated lineup and preserves channel identity for unchanged entries', async () => {
+    const store = new ChannelStore()
+
+    store.replaceFromRaw(samplePlaylist)
+    const firstId = store.getChannels()[0]?.identity.key
+
+    await store.refresh(async () => sampleUpdatedPlaylist)
+    expect(store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
+    await store.refresh(() => samplePlaylist)
+    expect(store.getChannels()[0]?.identity.key).toBe(firstId)
+  })
+
+  it('keeps the last good lineup when a refresh fails', async () => {
+    const store = new ChannelStore()
+
+    store.replaceFromRaw(sampleUpdatedPlaylist)
+
+    await expect(store.refresh(async () => {
+      throw new Error('upstream down')
+    })).rejects.toThrow(/upstream down/)
+
+    expect(store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
   })
 })

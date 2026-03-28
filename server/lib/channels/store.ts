@@ -19,6 +19,18 @@ export class ChannelStore {
     return this.getChannels()
   }
 
+  async refresh(fetchPlaylist: () => Promise<string>): Promise<Channel[]> {
+    const playlist = await fetchPlaylist()
+    const nextChannels = parseM3U(playlist, { logger: this.#logger })
+
+    if (nextChannels.length === 0) {
+      throw new Error('zero valid channels')
+    }
+
+    this.#channels = nextChannels
+    return this.getChannels()
+  }
+
   getChannels(): Channel[] {
     return [...this.#channels]
   }
