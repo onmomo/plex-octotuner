@@ -16,7 +16,8 @@ describe('parseM3U', () => {
       { number: '101', name: 'Das Erste HD' },
       { number: '103', name: 'ZDF HD' },
       { number: undefined, name: 'alpha Channel' },
-      { number: undefined, name: 'Zulu Channel' }
+      { number: undefined, name: 'Zulu Channel' },
+      { number: undefined, name: 'Ärger Channel' }
     ])
   })
 
@@ -42,6 +43,9 @@ describe('parseM3U', () => {
       }),
       expect.objectContaining({
         name: 'Zulu Channel'
+      }),
+      expect.objectContaining({
+        name: 'Ärger Channel'
       })
     ])
 

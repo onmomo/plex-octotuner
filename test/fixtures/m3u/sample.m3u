@@ -1,5 +1,5 @@
 #EXTM3U
-#EXTINF:-1 tvg-id="das-erste-hd" tvg-chno="102" tvg-logo="http://octopus.local/logos/daserste-alt.png" group-title="German HD",Das Erste HD
+#EXTINF:-1 tvg-id="das-erste-hd" tvg-chno="102" tvg-logo="http://octopus.local/logos/daserste-alt.png" group-title="News, Regional",Das Erste HD
 http://octopus.local:8888/stream/channel/1?descramble=1
 #EXTINF:-1 group-title="German",Zulu Channel
 http://octopus.local:8888/stream/channel/9?descramble=1
@@ -7,5 +7,7 @@ http://octopus.local:8888/stream/channel/9?descramble=1
 http://octopus.local:8888/stream/channel/1?descramble=1
 #EXTINF:-1 group-title="German",alpha Channel
 http://octopus.local:8888/stream/channel/8?descramble=1
+#EXTINF:-1 group-title="German",Ärger Channel
+http://octopus.local:8888/stream/channel/7?descramble=1
 #EXTINF:-1 tvg-chno="103" group-title="German HD",ZDF HD
 http://octopus.local:8888/stream/channel/2?descramble=1

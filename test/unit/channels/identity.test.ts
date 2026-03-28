@@ -25,4 +25,35 @@ describe('buildChannelIdentity', () => {
       streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
     }).key).toBe('name-path:das-erste-hd:/stream/channel/1')
   })
+
+  it('ignores whitespace-only tvg ids and numbers after normalization', () => {
+    expect(buildChannelIdentity({
+      tvgId: '   ',
+      number: '101',
+      name: 'Das Erste HD',
+      streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
+    }).key).toBe('number-name:101:das-erste-hd')
+
+    expect(buildChannelIdentity({
+      number: '   ',
+      name: 'Das Erste HD',
+      streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
+    }).key).toBe('name-path:das-erste-hd:/stream/channel/1')
+  })
+
+  it('keeps non-ascii-only metadata from collapsing into empty identities', () => {
+    const first = buildChannelIdentity({
+      name: 'テレビ',
+      streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
+    }).key
+
+    const second = buildChannelIdentity({
+      name: 'مرحبا',
+      streamUrl: 'http://octopus.local:8888/stream/channel/2?descramble=1'
+    }).key
+
+    expect(first).toBe('path:/stream/channel/1')
+    expect(second).toBe('path:/stream/channel/2')
+    expect(first).not.toBe(second)
+  })
 })

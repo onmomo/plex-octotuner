@@ -17,15 +17,27 @@ function hashIdentity(key: string): ChannelIdentity {
 }
 
 export function buildChannelIdentity(input: ChannelIdentityInput): ChannelIdentity {
-  if (input.tvgId) {
-    return hashIdentity(`tvg-id:${normalize(input.tvgId)}`)
+  const tvgId = normalize(input.tvgId ?? '')
+  if (tvgId) {
+    return hashIdentity(`tvg-id:${tvgId}`)
   }
 
-  if (input.number) {
-    return hashIdentity(`number-name:${normalize(input.number)}:${normalize(input.name)}`)
+  const number = normalize(input.number ?? '')
+  const name = normalize(input.name)
+
+  if (number && name) {
+    return hashIdentity(`number-name:${number}:${name}`)
   }
 
-  return hashIdentity(`name-path:${normalize(input.name)}:${streamPathKey(input.streamUrl)}`)
+  if (name) {
+    return hashIdentity(`name-path:${name}:${streamPathKey(input.streamUrl)}`)
+  }
+
+  if (number) {
+    return hashIdentity(`number-path:${number}:${streamPathKey(input.streamUrl)}`)
+  }
+
+  return hashIdentity(`path:${streamPathKey(input.streamUrl)}`)
 }
 
 export { normalize, streamPathKey }

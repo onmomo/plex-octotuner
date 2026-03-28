@@ -22,7 +22,18 @@ function hasNumericGuideNumber(value: string | undefined): value is string {
 }
 
 function compareCaseInsensitive(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { sensitivity: 'base' })
+  const leftFolded = left.toLowerCase()
+  const rightFolded = right.toLowerCase()
+
+  if (leftFolded < rightFolded) {
+    return -1
+  }
+
+  if (leftFolded > rightFolded) {
+    return 1
+  }
+
+  return 0
 }
 
 function compareParsedChannels(left: ParsedChannel, right: ParsedChannel): number {
@@ -62,18 +73,35 @@ function parseAttributes(value: string): Record<string, string> {
   return attributes
 }
 
+function findExtInfSeparator(line: string): number {
+  let inQuotes = false
+  for (let index = '#EXTINF:'.length; index < line.length; index += 1) {
+    const character = line[index]
+    if (character === '"') {
+      inQuotes = !inQuotes
+      continue
+    }
+
+    if (character === ',' && !inQuotes) {
+      return index
+    }
+  }
+
+  return -1
+}
+
 function parseExtInf(line: string): ParsedExtInf | null {
   if (!line.startsWith('#EXTINF:')) {
     return null
   }
 
-  const commaIndex = line.indexOf(',')
-  if (commaIndex < 0) {
+  const separatorIndex = findExtInfSeparator(line)
+  if (separatorIndex < 0) {
     return null
   }
 
-  const header = line.slice(0, commaIndex)
-  const name = line.slice(commaIndex + 1).trim()
+  const header = line.slice(0, separatorIndex)
+  const name = line.slice(separatorIndex + 1).trim()
   if (!name) {
     return null
   }
