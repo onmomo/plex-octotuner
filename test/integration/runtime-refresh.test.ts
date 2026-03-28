@@ -60,13 +60,14 @@ describe('runtime refresh', () => {
     vi.useRealTimers()
   })
 
-  it('serializes overlapping refresh ticks', async () => {
+  it('coalesces missed refresh ticks without backlogging them', async () => {
     vi.useFakeTimers()
 
     const slowRefresh = createDeferred<string>()
     const fetchPlaylist = vi.fn()
       .mockResolvedValueOnce(samplePlaylist)
       .mockImplementationOnce(() => slowRefresh.promise)
+      .mockResolvedValueOnce(sampleUpdatedPlaylist)
       .mockResolvedValueOnce(sampleUpdatedPlaylist)
     const logger = { info: vi.fn(), error: vi.fn() }
 
@@ -88,6 +89,16 @@ describe('runtime refresh', () => {
 
     slowRefresh.resolve(sampleUpdatedPlaylist)
     await vi.advanceTimersByTimeAsync(0)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(3)
+    expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(3)
+    expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(4)
+    expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
 
     await runtime.stop()
     vi.useRealTimers()
@@ -133,6 +144,33 @@ describe('runtime refresh', () => {
     await vi.advanceTimersByTimeAsync(6_000)
     expect(fetchPlaylist).toHaveBeenCalledTimes(2)
     expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
+    vi.useRealTimers()
+  })
+
+  it('does not arm the refresh loop after stop is called during startup', async () => {
+    vi.useFakeTimers()
+
+    const fetchPlaylist = vi.fn().mockResolvedValue(samplePlaylist)
+    const stopDiscovery = vi.fn(async () => {})
+    const logger = { info: vi.fn(), error: vi.fn() }
+
+    const runtime = await createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: async (nextRuntime) => {
+        void nextRuntime.stop()
+        return { stop: stopDiscovery }
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(1)
+
+    await runtime.stop()
+    expect(stopDiscovery).toHaveBeenCalledTimes(1)
 
     vi.useRealTimers()
   })
