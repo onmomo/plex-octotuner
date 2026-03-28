@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BridgeRuntime } from '../../server/lib/runtime'
 import { createBridgeRuntime } from '../../server/lib/runtime'
 import autoRoute from '../../server/routes/auto/[slug].get'
+import discoverRoute from '../../server/routes/discover.json.get'
 import deviceRoute from '../../server/routes/device.xml.get'
 import driDeviceRoute from '../../server/routes/dri/device.xml.get'
-import discoverRoute from '../../server/api/discover.json.get'
-import lineupRoute from '../../server/api/lineup.json.get'
-import lineupPostRoute from '../../server/api/lineup.post'
-import lineupStatusRoute from '../../server/api/lineup_status.json.get'
+import lineupRoute from '../../server/routes/lineup.json.get'
+import lineupPostRoute from '../../server/routes/lineup.post.post'
+import lineupStatusRoute from '../../server/routes/lineup_status.json.get'
 import runtimePlugin from '../../server/plugins/runtime.server'
 
 const { mockNitroApp } = vi.hoisted(() => ({
@@ -88,11 +88,15 @@ describe('required bridge http routes', () => {
 
   it('serves discover and lineup status contracts', async () => {
     expect(await $fetch('/discover.json')).toMatchObject({
+      FriendlyName: 'octotuner',
       DeviceID: '105A1B2C',
+      DeviceAuth: 'octotuner-105A1B2C',
       Manufacturer: 'Silicondust',
       ModelNumber: 'HDTC-2US',
       FirmwareName: 'hdhomeruntc_atsc',
       FirmwareVersion: '20150826',
+      BaseURL: 'http://192.168.1.50:34400',
+      LineupURL: 'http://192.168.1.50:34400/lineup.json',
       TunerCount: 2
     })
 

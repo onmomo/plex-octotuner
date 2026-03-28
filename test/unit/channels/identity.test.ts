@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChannelIdentity } from '../../../server/lib/channels/identity'
+import { buildChannelId, buildChannelIdentity } from '../../../server/lib/channels/identity'
 
 describe('buildChannelIdentity', () => {
   it('prefers tvg id when present', () => {
@@ -55,5 +55,15 @@ describe('buildChannelIdentity', () => {
     expect(first).toBe('path:/stream/channel/1')
     expect(second).toBe('path:/stream/channel/2')
     expect(first).not.toBe(second)
+  })
+})
+
+describe('buildChannelId', () => {
+  it('derives a stable deterministic channel id from the identity key', () => {
+    const id = buildChannelId('tvg-id:das-erste-hd')
+
+    expect(id).toMatch(/^[a-f0-9]{12}$/)
+    expect(buildChannelId('tvg-id:das-erste-hd')).toBe(id)
+    expect(buildChannelId('number-name:101:das-erste-hd')).not.toBe(id)
   })
 })

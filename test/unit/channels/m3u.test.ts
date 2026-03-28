@@ -60,6 +60,18 @@ describe('parseM3U', () => {
     expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('descramble=1'))
   })
 
+  it('assigns a stable id to each normalized channel', () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+
+    const channels = parseM3U(samplePlaylist, { logger })
+
+    expect(channels[0]).toEqual(expect.objectContaining({
+      id: expect.stringMatching(/^[a-f0-9]{12}$/)
+    }))
+    expect(channels.every((channel) => channel.id.length === 12)).toBe(true)
+    expect(new Set(channels.map((channel) => channel.id)).size).toBe(channels.length)
+  })
+
   it('drops invalid channels and redacts warnings', () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 

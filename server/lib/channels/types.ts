@@ -10,6 +10,7 @@ export type ChannelIdentity = {
 }
 
 export type Channel = {
+  id: string
   identity: ChannelIdentity
   tvgId?: string
   number?: string

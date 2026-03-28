@@ -1,4 +1,4 @@
-import { buildChannelIdentity } from './identity'
+import { buildChannelId, buildChannelIdentity } from './identity'
 import type { Channel, ParseM3UOptions } from './types'
 
 type PendingChannel = {
@@ -134,6 +134,7 @@ function buildChannel(pending: PendingChannel, streamUrl: string): Channel {
   })
 
   return {
+    id: buildChannelId(identity.key),
     identity,
     tvgId: pending.tvgId,
     number: pending.number,
@@ -228,6 +229,7 @@ export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] 
 
     seen.add(channel.identity.key)
     orderedChannels.push({
+      id: channel.id,
       identity: channel.identity,
       tvgId: channel.tvgId,
       number: channel.number,

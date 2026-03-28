@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { ChannelIdentity, ChannelIdentityInput } from './types'
 
 function normalize(value: string): string {
@@ -14,6 +15,10 @@ function streamPathKey(streamUrl: string): string {
 
 function hashIdentity(key: string): ChannelIdentity {
   return { key }
+}
+
+export function buildChannelId(key: string): string {
+  return createHash('sha256').update(key).digest('hex').slice(0, 12)
 }
 
 export function buildChannelIdentity(input: ChannelIdentityInput): ChannelIdentity {
