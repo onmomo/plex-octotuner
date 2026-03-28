@@ -36,8 +36,12 @@ const dgramMock = vi.hoisted(() => {
         removeHandler(event, handler)
         return socket
       }),
-      bind: vi.fn((port: number, callback?: () => void) => {
-        callback?.()
+      bind: vi.fn((port: number, addressOrCallback?: string | (() => void), callback?: () => void) => {
+        if (typeof addressOrCallback === 'function') {
+          addressOrCallback()
+        } else {
+          callback?.()
+        }
         return socket
       }),
       addMembership: vi.fn(),
@@ -233,5 +237,35 @@ describe('discovery server responders', () => {
 
     expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
     expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('honors test-only bind and startup options for live socket coverage', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const runtime = {
+      config,
+      logger,
+      store: { getChannels: () => [] },
+      fetchPlaylist: vi.fn(),
+      stop: vi.fn()
+    }
+
+    const handle = await startDiscoveryServer(
+      runtime,
+      undefined,
+      {
+        bindAddress: '127.0.0.1',
+        ssdpPort: 1901,
+        hdhomerunPort: 65002,
+        joinSsdpMulticast: false,
+        startupNotify: false
+      }
+    )
+
+    expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1901, '127.0.0.1', expect.any(Function))
+    expect(dgramMock.state.created[0]?.socket.addMembership).not.toHaveBeenCalled()
+    expect(dgramMock.state.created[0]?.socket.send).not.toHaveBeenCalled()
+    expect(dgramMock.state.created[1]?.socket.bind).toHaveBeenCalledWith(65002, '127.0.0.1', expect.any(Function))
+
+    await handle.stop()
   })
 })
