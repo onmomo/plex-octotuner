@@ -12,6 +12,18 @@ const validEnv = {
   PLAYLIST_REFRESH_SECONDS: '2'
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+
+  return { promise, resolve, reject }
+}
+
 describe('runtime refresh', () => {
   it('runs scheduled refreshes on the configured interval and keeps the last good lineup when a refresh fails', async () => {
     vi.useFakeTimers()
@@ -45,6 +57,83 @@ describe('runtime refresh', () => {
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('playlist refresh failed'), expect.any(Error))
 
     await runtime.stop()
+    vi.useRealTimers()
+  })
+
+  it('serializes overlapping refresh ticks', async () => {
+    vi.useFakeTimers()
+
+    const slowRefresh = createDeferred<string>()
+    const fetchPlaylist = vi.fn()
+      .mockResolvedValueOnce(samplePlaylist)
+      .mockImplementationOnce(() => slowRefresh.promise)
+      .mockResolvedValueOnce(sampleUpdatedPlaylist)
+    const logger = { info: vi.fn(), error: vi.fn() }
+
+    const runtime = await createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false
+    })
+
+    expect(fetchPlaylist).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(2)
+    expect(runtime.store.getChannels()).toHaveLength(6)
+
+    slowRefresh.resolve(sampleUpdatedPlaylist)
+    await vi.advanceTimersByTimeAsync(0)
+
+    await runtime.stop()
+    vi.useRealTimers()
+  })
+
+  it('waits for an in-flight refresh to settle before stop resolves', async () => {
+    vi.useFakeTimers()
+
+    const slowRefresh = createDeferred<string>()
+    const fetchPlaylist = vi.fn()
+      .mockResolvedValueOnce(samplePlaylist)
+      .mockImplementationOnce(() => slowRefresh.promise)
+    const logger = { info: vi.fn(), error: vi.fn() }
+
+    const runtime = await createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false
+    })
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(2)
+
+    const stopPromise = runtime.stop()
+    let stopSettled = false
+    stopPromise.then(() => {
+      stopSettled = true
+    })
+
+    await Promise.resolve()
+    expect(stopSettled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(2)
+
+    slowRefresh.resolve(sampleUpdatedPlaylist)
+    await stopPromise
+
+    expect(stopSettled).toBe(true)
+    expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(fetchPlaylist).toHaveBeenCalledTimes(2)
+    expect(runtime.store.getChannels().map((channel) => channel.number)).toEqual(['101', '103'])
+
     vi.useRealTimers()
   })
 })

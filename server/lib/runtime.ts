@@ -59,14 +59,31 @@ function createStoreLogger(logger: BridgeLogger): { warn(message: string): void 
   }
 }
 
-export function startRefreshLoop(runtime: BridgeRuntime): () => void {
-  const timer = setInterval(() => {
-    void runtime.store.refresh(() => runtime.fetchPlaylist(runtime.config.m3uUrl)).catch((error) => {
-      runtime.logger.error('playlist refresh failed', error)
-    })
-  }, runtime.config.playlistRefreshSeconds * 1000)
+export function startRefreshLoop(runtime: BridgeRuntime): () => Promise<void> {
+  let stopped = false
+  let refreshQueue = Promise.resolve()
 
-  return () => clearInterval(timer)
+  const enqueueRefresh = (): void => {
+    refreshQueue = refreshQueue.then(async () => {
+      if (stopped) {
+        return
+      }
+
+      try {
+        await runtime.store.refresh(() => runtime.fetchPlaylist(runtime.config.m3uUrl))
+      } catch (error) {
+        runtime.logger.error('playlist refresh failed', error)
+      }
+    })
+  }
+
+  const timer = setInterval(enqueueRefresh, runtime.config.playlistRefreshSeconds * 1000)
+
+  return async () => {
+    stopped = true
+    clearInterval(timer)
+    await refreshQueue
+  }
 }
 
 export async function createBridgeRuntime(options: CreateRuntimeOptions): Promise<BridgeRuntime> {
@@ -110,8 +127,7 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
 
   let discoveryHandle: DiscoveryHandle | undefined
   let stopPromise: Promise<void> | undefined
-  let stopRefreshLoop: (() => void) | undefined
-  let isStopped = false
+  let stopRefreshLoop: (() => Promise<void>) | undefined
   const startupCleanups: CleanupRegistration[] = []
 
   const registerCleanup = (cleanup: CleanupRegistration): void => {
@@ -125,11 +141,10 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
     fetchPlaylist,
     stop: async () => {
       if (!stopPromise) {
-        isStopped = true
-        stopPromise = Promise.resolve().then(() => {
-          stopRefreshLoop?.()
-          return discoveryHandle?.stop()
-        }).then(() => {})
+        stopPromise = Promise.resolve().then(async () => {
+          await stopRefreshLoop?.()
+          await discoveryHandle?.stop()
+        })
       }
 
       await stopPromise
@@ -152,9 +167,7 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
     }
   }
 
-  if (!isStopped) {
-    stopRefreshLoop = startRefreshLoop(runtime)
-  }
+  stopRefreshLoop = startRefreshLoop(runtime)
 
   return runtime
 }
