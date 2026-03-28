@@ -1,4 +1,6 @@
 #EXTM3U
+#EXTINF:-1 tvg-chno="100" tvg-logo="http://octopus.local/logos/news.png" group-title="News, Regional",Quoted Comma Channel
+http://octopus.local:8888/stream/channel/0?descramble=1
 #EXTINF:-1 tvg-id="das-erste-hd" tvg-chno="102" tvg-logo="http://octopus.local/logos/daserste-alt.png" group-title="News, Regional",Das Erste HD
 http://octopus.local:8888/stream/channel/1?descramble=1
 #EXTINF:-1 group-title="German",Zulu Channel

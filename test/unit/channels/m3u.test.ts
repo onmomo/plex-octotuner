@@ -13,6 +13,7 @@ describe('parseM3U', () => {
       number: channel.number,
       name: channel.name
     }))).toEqual([
+      { number: '100', name: 'Quoted Comma Channel' },
       { number: '101', name: 'Das Erste HD' },
       { number: '103', name: 'ZDF HD' },
       { number: undefined, name: 'alpha Channel' },
@@ -27,6 +28,12 @@ describe('parseM3U', () => {
     const channels = parseM3U(samplePlaylist, { logger })
 
     expect(channels).toEqual([
+      expect.objectContaining({
+        number: '100',
+        name: 'Quoted Comma Channel',
+        groupTitle: 'News, Regional',
+        streamUrl: 'http://octopus.local:8888/stream/channel/0?descramble=1'
+      }),
       expect.objectContaining({
         number: '101',
         name: 'Das Erste HD',
