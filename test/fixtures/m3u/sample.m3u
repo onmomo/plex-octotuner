@@ -1,0 +1,7 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="das-erste-hd" tvg-chno="101" tvg-logo="http://octopus.local/logos/daserste.png" group-title="German HD",Das Erste HD
+http://octopus.local:8888/stream/channel/1?descramble=1
+#EXTINF:-1 tvg-chno="102" group-title="German HD",ZDF HD
+http://octopus.local:8888/stream/channel/2?descramble=1
+#EXTINF:-1 tvg-id="das-erste-hd" tvg-chno="101" tvg-logo="http://octopus.local/logos/daserste-duplicate.png" group-title="German HD",Das Erste HD Duplicate
+http://octopus.local:8888/stream/channel/1?descramble=1
