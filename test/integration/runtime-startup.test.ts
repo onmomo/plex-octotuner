@@ -18,7 +18,8 @@ describe('createBridgeRuntime', () => {
     const runtime = await createBridgeRuntime({
       env: validEnv,
       fetchPlaylist: async () => samplePlaylist,
-      logger
+      logger,
+      probeDeviceIdCollision: async () => false
     })
 
     expect(runtime.store.getChannels()).toEqual([
@@ -56,7 +57,8 @@ describe('createBridgeRuntime', () => {
       fetchPlaylist: async () => {
         throw new Error('fetch failed')
       },
-      logger
+      logger,
+      probeDeviceIdCollision: async () => false
     })).rejects.toThrow(/fetch failed/)
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('playlist fetch failed'), expect.any(Error))
@@ -68,7 +70,8 @@ describe('createBridgeRuntime', () => {
     await expect(createBridgeRuntime({
       env: validEnv,
       fetchPlaylist: async () => invalidOnlyPlaylist,
-      logger
+      logger,
+      probeDeviceIdCollision: async () => false
     })).rejects.toThrow(/zero valid channels/i)
   })
 
@@ -81,5 +84,21 @@ describe('createBridgeRuntime', () => {
       logger,
       probeDeviceIdCollision: async () => true
     })).rejects.toThrow(/HDHR_DEVICE_ID/)
+  })
+
+  it('logs and aborts startup when the device id probe throws', async () => {
+    const logger = { info: vi.fn(), error: vi.fn() }
+    const probeError = new Error('bind EPERM 0.0.0.0')
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => {
+        throw probeError
+      }
+    })).rejects.toThrow(/bind EPERM/)
+
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('device id collision probe failed'), probeError)
   })
 })

@@ -47,14 +47,15 @@ export async function createBridgeRuntime(options: CreateRuntimeOptions): Promis
   logStartupConfig(options.logger, config)
 
   let hasCollision = false
-  if (options.probeDeviceIdCollision) {
-    hasCollision = await options.probeDeviceIdCollision(config)
-  } else {
-    try {
+  try {
+    if (options.probeDeviceIdCollision) {
+      hasCollision = await options.probeDeviceIdCollision(config)
+    } else {
       hasCollision = await probeDeviceIdCollision(config)
-    } catch (error) {
-      options.logger.error('device id collision probe failed', error)
     }
+  } catch (error) {
+    options.logger.error('device id collision probe failed', error)
+    throw error
   }
 
   if (hasCollision) {
