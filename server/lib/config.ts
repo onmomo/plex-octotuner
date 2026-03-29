@@ -13,9 +13,11 @@ const DEFAULT_SERVER_PORT = 34400
 const DEFAULT_FRIENDLY_NAME = 'octotuner'
 const DEFAULT_PLAYLIST_REFRESH_SECONDS = 300
 const DEFAULT_TUNER_COUNT = 4
+const DEFAULT_DEVICE_ID = '105A1B22'
 const HDHOMERUN_MAX_TUNER_COUNT = 255
 const DEVICE_ID_PATTERN = /^[A-F0-9]{8}$/
 const HTTP_SCHEMES = new Set(['http:', 'https:'])
+const HDHOMERUN_DEVICE_ID_LOOKUP = [0xA, 0x5, 0xF, 0x6, 0x7, 0xC, 0x1, 0xB, 0x9, 0x2, 0x8, 0xD, 0x4, 0x3, 0xE, 0x0] as const
 
 function readRequired(env: Record<string, string | undefined>, key: string): string {
   const value = env[key]
@@ -101,10 +103,30 @@ function parsePositiveInt(value: string | undefined, key: string, defaultValue: 
   return parsed
 }
 
+function isValidHdhomerunDeviceId(deviceId: string): boolean {
+  const value = Number.parseInt(deviceId, 16)
+  let checksum = 0
+
+  checksum ^= HDHOMERUN_DEVICE_ID_LOOKUP[(value >> 28) & 0x0F]
+  checksum ^= (value >> 24) & 0x0F
+  checksum ^= HDHOMERUN_DEVICE_ID_LOOKUP[(value >> 20) & 0x0F]
+  checksum ^= (value >> 16) & 0x0F
+  checksum ^= HDHOMERUN_DEVICE_ID_LOOKUP[(value >> 12) & 0x0F]
+  checksum ^= (value >> 8) & 0x0F
+  checksum ^= HDHOMERUN_DEVICE_ID_LOOKUP[(value >> 4) & 0x0F]
+  checksum ^= value & 0x0F
+
+  return checksum === 0
+}
+
 function normalizeDeviceId(value: string): string {
   const deviceId = value.trim().toUpperCase()
   if (!DEVICE_ID_PATTERN.test(deviceId)) {
     throw new Error('HDHR_DEVICE_ID must be an 8-character hexadecimal identifier')
+  }
+
+  if (!isValidHdhomerunDeviceId(deviceId)) {
+    throw new Error('HDHR_DEVICE_ID must be a valid HDHomeRun device identifier')
   }
 
   return deviceId
@@ -144,9 +166,9 @@ export function loadBridgeConfig(env: Record<string, string | undefined>): Bridg
     DEFAULT_TUNER_COUNT,
     HDHOMERUN_MAX_TUNER_COUNT
   )
-  const deviceId = normalizeDeviceId(readRequired(env, 'HDHR_DEVICE_ID'))
+  const deviceId = normalizeDeviceId(env.HDHR_DEVICE_ID ?? DEFAULT_DEVICE_ID)
   const deviceAuth = env.HDHR_DEVICE_AUTH === undefined
-    ? `${DEFAULT_FRIENDLY_NAME}-${deviceId}`
+    ? `octotuner-${deviceId}`
     : parseDeviceAuth(env.HDHR_DEVICE_AUTH)
 
   if (serverPort !== portFromUrl(advertisedBaseUrl)) {

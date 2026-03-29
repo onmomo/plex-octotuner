@@ -10,21 +10,33 @@ describe('loadBridgeConfig', () => {
   it('applies safe defaults', () => {
     const config = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
-      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C'
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400'
     })
 
     expect(config.serverPort).toBe(34400)
     expect(config.friendlyName).toBe('octotuner')
     expect(config.playlistRefreshSeconds).toBe(300)
     expect(config.tunerCount).toBe(4)
+    expect(config.deviceId).toBe('105A1B22')
+    expect(config.deviceAuth).toBe('octotuner-105A1B22')
+  })
+
+  it('allows overriding the default HDHomeRun device id', () => {
+    const config = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '10A1B2C7'
+    })
+
+    expect(config.deviceId).toBe('10A1B2C7')
+    expect(config.deviceAuth).toBe('octotuner-10A1B2C7')
   })
 
   it('allows overriding the advertised HDHomeRun tuner count', () => {
     const config = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_TUNER_COUNT: '2'
     })
 
@@ -33,7 +45,7 @@ describe('loadBridgeConfig', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_TUNER_COUNT: '0'
     })).toThrow(/HDHR_TUNER_COUNT/)
   })
@@ -42,7 +54,7 @@ describe('loadBridgeConfig', () => {
     const maxConfig = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_TUNER_COUNT: '255'
     })
 
@@ -61,7 +73,7 @@ describe('loadBridgeConfig', () => {
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
       SERVER_PORT: '3000',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/SERVER_PORT/)
   })
 
@@ -69,16 +81,16 @@ describe('loadBridgeConfig', () => {
     const config = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_FRIENDLY_NAME: 'something-else'
     })
 
-    expect(config.deviceAuth).toBe('octotuner-105A1B2C')
+    expect(config.deviceAuth).toBe('octotuner-105A1B22')
 
     const explicitAuthConfig = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_DEVICE_AUTH: 'custom-auth',
       HDHR_FRIENDLY_NAME: 'something-else'
     })
@@ -92,11 +104,27 @@ describe('loadBridgeConfig', () => {
     })).toThrow(/HDHR_DEVICE_ID/)
   })
 
+  it('rejects HDHomeRun device ids that fail the SiliconDust checksum', () => {
+    expect(() => loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '10A1B2C3'
+    })).toThrow(/HDHR_DEVICE_ID/)
+
+    const config = loadBridgeConfig({
+      M3U_URL: 'http://octopus.local/playlist.m3u',
+      ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
+      HDHR_DEVICE_ID: '10A1B2C7'
+    })
+
+    expect(config.deviceId).toBe('10A1B2C7')
+  })
+
   it('rejects advertised base urls without an explicit port', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
@@ -104,13 +132,13 @@ describe('loadBridgeConfig', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://user:pass@192.168.1.50:34400/path?token=secret#frag',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/ADVERTISED_BASE_URL/)
 
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: ' http://192.168.1.50:34400 ',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
@@ -118,13 +146,13 @@ describe('loadBridgeConfig', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'ftp://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/M3U_URL/)
 
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'ftp://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/ADVERTISED_BASE_URL/)
   })
 
@@ -133,21 +161,21 @@ describe('loadBridgeConfig', () => {
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
       SERVER_PORT: '0x10',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/SERVER_PORT/)
 
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
       PLAYLIST_REFRESH_SECONDS: '1e3',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/PLAYLIST_REFRESH_SECONDS/)
 
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
       SERVER_PORT: ' 3000 ',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })).toThrow(/SERVER_PORT/)
   })
 
@@ -155,14 +183,14 @@ describe('loadBridgeConfig', () => {
     expect(() => loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_DEVICE_AUTH: '   '
     })).toThrow(/HDHR_DEVICE_AUTH/)
 
     const config = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_DEVICE_AUTH: 'custom-auth'
     })
 

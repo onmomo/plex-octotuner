@@ -2,16 +2,26 @@ import { createSocket, type RemoteInfo, type Socket } from 'node:dgram'
 import { isIP } from 'node:net'
 import type { BridgeConfig } from '../config'
 import type { BridgeLogger, BridgeRuntime, CleanupRegistration, DiscoveryHandle } from '../runtime'
+import { startHdhomerunControlServer } from './hdhomerun-control'
 import { buildHdhomerunDiscoveryReply } from './hdhomerun-packets'
-import { buildSsdpNotify, buildSsdpSearchResponse } from './ssdp-packets'
+import { readHdhomerunVarLength } from './hdhomerun-tlv'
+import {
+  buildSsdpNotifyPackets,
+  buildSsdpSearchResponses,
+  SSDP_ALL_TARGET,
+  SSDP_ROOT_DEVICE_TARGET
+} from './ssdp-packets'
 
 export const SSDP_MULTICAST_HOST = '239.255.255.250'
 export const SSDP_MULTICAST_PORT = 1900
 export const HDHOMERUN_DISCOVERY_PORT = 65001
 
-const SSDP_ROOT_DEVICE_TARGET = 'upnp:rootdevice'
-const SSDP_ALL_TARGET = 'ssdp:all'
 const HDHOMERUN_TYPE_DISCOVER_REQ = 0x0002
+const HDHOMERUN_TAG_DEVICE_TYPE = 0x01
+const HDHOMERUN_TAG_DEVICE_ID = 0x02
+const HDHOMERUN_TAG_MULTI_TYPE = 0x2D
+const HDHOMERUN_DEVICE_TYPE_WILDCARD = 0xFFFFFFFF
+const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 const UDP4_SOCKET_TYPE = 'udp4'
 
 type DiscoverySend = (
@@ -36,10 +46,12 @@ type StartupNotifyOptions = {
 
 export type DiscoveryServerOptions = {
   bindAddress?: string
+  controlPort?: number
   ssdpPort?: number
   hdhomerunPort?: number
   ssdpMulticastHost?: string
   joinSsdpMulticast?: boolean
+  startControl?: boolean
   startupNotify?: boolean
 }
 
@@ -77,19 +89,111 @@ function parseSsdpHeaders(message: Buffer): Map<string, string> | null {
   return headers
 }
 
-function isSupportedSsdpTarget(searchTarget: string | undefined): searchTarget is typeof SSDP_ROOT_DEVICE_TARGET | typeof SSDP_ALL_TARGET {
-  return searchTarget === SSDP_ROOT_DEVICE_TARGET || searchTarget === SSDP_ALL_TARGET
+function isSupportedSsdpTarget(
+  searchTarget: string | undefined
+): searchTarget is
+  | typeof SSDP_ROOT_DEVICE_TARGET
+  | typeof SSDP_ALL_TARGET {
+  return searchTarget === SSDP_ROOT_DEVICE_TARGET
+    || searchTarget === SSDP_ALL_TARGET
 }
 
-function isHdhomerunDiscoveryRequest(message: Buffer): boolean {
+function calculateCrc32(data: Buffer): number {
+  let crc = 0xFFFFFFFF
+
+  for (const byte of data) {
+    crc ^= byte
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((crc & 1) !== 0) {
+        crc = (crc >>> 1) ^ 0xEDB88320
+      } else {
+        crc >>>= 1
+      }
+    }
+  }
+
+  return (crc ^ 0xFFFFFFFF) >>> 0
+}
+
+type HdhomerunDiscoveryRequest = {
+  deviceId?: number
+  deviceTypes: number[]
+}
+
+function parseHdhomerunDiscoveryRequest(message: Buffer): HdhomerunDiscoveryRequest | null {
   if (message.length < 8) {
-    return false
+    return null
   }
 
   const packetType = message.readUInt16BE(0)
   const payloadLength = message.readUInt16BE(2)
+  const totalLength = 4 + payloadLength + 4
 
-  return packetType === HDHOMERUN_TYPE_DISCOVER_REQ && message.length >= 4 + payloadLength + 4
+  if (packetType !== HDHOMERUN_TYPE_DISCOVER_REQ || message.length < totalLength) {
+    return null
+  }
+
+  const expectedCrc = calculateCrc32(message.subarray(0, totalLength - 4))
+  const actualCrc = message.readUInt32LE(totalLength - 4)
+  if (expectedCrc !== actualCrc) {
+    return null
+  }
+
+  const request: HdhomerunDiscoveryRequest = { deviceTypes: [] }
+  let offset = 4
+  const limit = 4 + payloadLength
+
+  while (offset < limit) {
+    const tag = message[offset]
+    const length = readHdhomerunVarLength(message, offset + 1)
+    if (!length) {
+      return null
+    }
+
+    const valueOffset = offset + 1 + length.byteLength
+    const valueLimit = valueOffset + length.value
+    if (valueLimit > limit) {
+      return null
+    }
+
+    if (tag === HDHOMERUN_TAG_DEVICE_TYPE && length.value === 4) {
+      request.deviceTypes.push(message.readUInt32BE(valueOffset))
+    }
+
+    if (tag === HDHOMERUN_TAG_MULTI_TYPE && length.value >= 4 && length.value % 4 === 0) {
+      for (let typeOffset = valueOffset; typeOffset < valueLimit; typeOffset += 4) {
+        request.deviceTypes.push(message.readUInt32BE(typeOffset))
+      }
+    }
+
+    if (tag === HDHOMERUN_TAG_DEVICE_ID && length.value === 4) {
+      request.deviceId = message.readUInt32BE(valueOffset)
+    }
+
+    offset = valueLimit
+  }
+
+  if (request.deviceTypes.length === 0) {
+    return null
+  }
+
+  return request
+}
+
+function requestMatchesConfig(request: HdhomerunDiscoveryRequest, config: BridgeConfig): boolean {
+  const matchesType = request.deviceTypes.includes(HDHOMERUN_DEVICE_TYPE_WILDCARD)
+    || request.deviceTypes.includes(HDHOMERUN_DEVICE_TYPE_TUNER)
+
+  if (!matchesType) {
+    return false
+  }
+
+  if (request.deviceId === undefined || request.deviceId === 0xFFFFFFFF) {
+    return true
+  }
+
+  return request.deviceId === Number.parseInt(config.deviceId, 16)
 }
 
 function bindSocket(socket: Socket, port: number, address?: string): Promise<void> {
@@ -145,12 +249,13 @@ function logSocketError(logger: BridgeLogger, scope: string, error: unknown): vo
 }
 
 export async function sendStartupNotify({ config, send }: StartupNotifyOptions): Promise<void> {
-  await send(buildSsdpNotify(config), SSDP_MULTICAST_HOST, SSDP_MULTICAST_PORT)
+  for (const packet of buildSsdpNotifyPackets(config)) {
+    await send(packet, SSDP_MULTICAST_HOST, SSDP_MULTICAST_PORT)
+  }
 }
 
 export async function handleSsdpMessage({
   config,
-  logger,
   message,
   remoteAddress,
   remotePort,
@@ -163,32 +268,27 @@ export async function handleSsdpMessage({
     return false
   }
 
-  logger.info('ssdp discovery request', {
-    address: remoteAddress,
-    port: remotePort,
-    searchTarget
-  })
-
-  await send(buildSsdpSearchResponse(config, searchTarget), remoteAddress, remotePort)
+  for (const response of buildSsdpSearchResponses(config, searchTarget)) {
+    await send(response, remoteAddress, remotePort)
+  }
   return true
 }
 
 export async function handleHdhomerunDiscoveryRequest({
   config,
-  logger,
   message,
   remoteAddress,
   remotePort,
   send
 }: DiscoveryMessageOptions): Promise<boolean> {
-  if (!isHdhomerunDiscoveryRequest(message)) {
+  const request = parseHdhomerunDiscoveryRequest(message)
+  if (!request) {
     return false
   }
 
-  logger.info('hdhomerun discovery request', {
-    address: remoteAddress,
-    port: remotePort
-  })
+  if (!requestMatchesConfig(request, config)) {
+    return false
+  }
 
   await send(buildHdhomerunDiscoveryReply(config), remoteAddress, remotePort)
   return true
@@ -246,6 +346,7 @@ export async function startDiscoveryServer(
   const hdhomerunPort = options.hdhomerunPort ?? HDHOMERUN_DISCOVERY_PORT
   const ssdpMulticastHost = options.ssdpMulticastHost ?? SSDP_MULTICAST_HOST
   const joinSsdpMulticast = options.joinSsdpMulticast ?? true
+  const startControl = options.startControl ?? true
   const startupNotify = options.startupNotify ?? true
   const ssdpMulticastInterface = resolveSsdpMulticastInterface(runtime.config, options)
 
@@ -266,6 +367,14 @@ export async function startDiscoveryServer(
   await bindSocket(hdhomerunSocket, hdhomerunPort, options.bindAddress)
 
   attachSocketHandlers(runtime, ssdpSocket, hdhomerunSocket)
+
+  const controlHandle = startControl
+    ? await startHdhomerunControlServer(runtime, registerCleanup, {
+      bindAddress: options.bindAddress,
+      controlPort: options.controlPort
+    })
+    : undefined
+
   if (startupNotify) {
     await sendStartupNotify({
       config: runtime.config,
@@ -279,6 +388,7 @@ export async function startDiscoveryServer(
     stop: async () => {
       if (!stopPromise) {
         stopPromise = Promise.all([
+          controlHandle?.stop(),
           closeSocket(hdhomerunSocket),
           closeSocket(ssdpSocket)
         ]).then(() => undefined)

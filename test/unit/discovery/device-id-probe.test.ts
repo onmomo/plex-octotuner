@@ -40,7 +40,7 @@ import {
 const validEnv = {
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C'
+  HDHR_DEVICE_ID: '105A1B22'
 }
 
 function encodeVarLength(length: number): Buffer {
@@ -70,7 +70,7 @@ function buildDiscoveryPacket(deviceIdHex: string, precedingTags: Buffer[] = [])
 
 describe('parseDeviceId', () => {
   it('extracts a device id from a discovery response packet', () => {
-    expect(parseDeviceId(buildDiscoveryPacket('105A1B2C'))).toBe('105A1B2C')
+    expect(parseDeviceId(buildDiscoveryPacket('105A1B22'))).toBe('105A1B22')
   })
 
   it('returns null for truncated device id packets', () => {
@@ -82,7 +82,7 @@ describe('parseDeviceId', () => {
   it('extracts a device id after a preceding tag that uses a multi-byte var-length field', () => {
     const longBaseUrlTag = encodeTag(0x2A, Buffer.alloc(130, 0x61))
 
-    expect(parseDeviceId(buildDiscoveryPacket('105A1B2C', [longBaseUrlTag]))).toBe('105A1B2C')
+    expect(parseDeviceId(buildDiscoveryPacket('105A1B22', [longBaseUrlTag]))).toBe('105A1B22')
   })
 })
 
@@ -108,13 +108,13 @@ describe('discoverLanDevices', () => {
   it('listens on the udp socket and collects parsed device ids', async () => {
     const devicesPromise = discoverLanDevices(250)
 
-    dgramMock.handlers.get('message')?.(buildDiscoveryPacket('105A1B2C'))
-    dgramMock.handlers.get('message')?.(buildDiscoveryPacket('105A1B2C'))
+    dgramMock.handlers.get('message')?.(buildDiscoveryPacket('105A1B22'))
+    dgramMock.handlers.get('message')?.(buildDiscoveryPacket('105A1B22'))
     dgramMock.handlers.get('message')?.(Buffer.from([0x00, 0x03, 0x00, 0x01, 0xFF]))
 
     await vi.advanceTimersByTimeAsync(250)
 
-    await expect(devicesPromise).resolves.toEqual([{ deviceId: '105A1B2C' }])
+    await expect(devicesPromise).resolves.toEqual([{ deviceId: '105A1B22' }])
     expect(dgramMock.createSocket).toHaveBeenCalledWith('udp4')
     expect(dgramMock.socket.bind).toHaveBeenCalled()
     expect(dgramMock.socket.setBroadcast).toHaveBeenCalledWith(true)
@@ -138,7 +138,7 @@ describe('probeDeviceIdCollision', () => {
     const config = loadBridgeConfig(validEnv)
 
     await expect(
-      probeDeviceIdCollision(config, async () => [{ deviceId: '105A1B2C' }])
+      probeDeviceIdCollision(config, async () => [{ deviceId: '105A1B22' }])
     ).resolves.toBe(true)
   })
 

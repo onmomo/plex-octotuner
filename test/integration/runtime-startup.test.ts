@@ -127,7 +127,7 @@ const invalidOnlyPlaylist = readFileSync(new URL('../fixtures/m3u/invalid-only.m
 const validEnv = {
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C'
+  HDHR_DEVICE_ID: '105A1B22'
 }
 
 function createDeferred<T>() {
@@ -153,7 +153,7 @@ describe('createBridgeRuntime', () => {
       fetchPlaylist: async () => samplePlaylist,
       logger,
       probeDeviceIdCollision: async () => false,
-      startDiscovery: startDiscoveryServer
+      startDiscovery: (runtime, registerCleanup) => startDiscoveryServer(runtime, registerCleanup, { startControl: false })
     })
 
     await runtime.stop()
@@ -185,7 +185,7 @@ describe('createBridgeRuntime', () => {
       fetchPlaylist: async () => samplePlaylist,
       logger,
       probeDeviceIdCollision: async () => false,
-      startDiscovery: startDiscoveryServer
+      startDiscovery: (runtime, registerCleanup) => startDiscoveryServer(runtime, registerCleanup, { startControl: false })
     })).rejects.toThrow(/EADDRINUSE/)
 
     expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
@@ -210,7 +210,11 @@ describe('createBridgeRuntime', () => {
       expect.objectContaining({ name: 'Zulu Channel' }),
       expect.objectContaining({ name: 'Ärger Channel' })
     ])
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('bridge startup config'))
+    expect(logger.info).toHaveBeenCalledWith('bridge startup config', expect.objectContaining({
+      tunerCount: 4,
+      deviceId: '105A1B22',
+      serverPort: 34400
+    }))
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('loaded 6 channels'))
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('dropped duplicate channel'))
 
@@ -359,7 +363,7 @@ describe('createBridgeRuntime', () => {
     })).rejects.toThrow(/discovery failed/)
 
     expect(seenRuntime).toHaveBeenCalledWith({
-      deviceId: '105A1B2C',
+      deviceId: '105A1B22',
       channelCount: 6,
       logger
     })

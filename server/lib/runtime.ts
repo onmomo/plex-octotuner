@@ -36,14 +36,15 @@ export interface CreateRuntimeOptions {
 }
 
 function logStartupConfig(logger: BridgeLogger, config: BridgeConfig): void {
-  logger.info(`bridge startup config ${JSON.stringify({
+  logger.info('bridge startup config', {
     m3uUrl: config.m3uUrl.toString(),
     advertisedBaseUrl: config.advertisedBaseUrl.toString(),
     serverPort: config.serverPort,
     friendlyName: config.friendlyName,
     playlistRefreshSeconds: config.playlistRefreshSeconds,
+    tunerCount: config.tunerCount,
     deviceId: config.deviceId
-  })}`)
+  })
 }
 
 function createStoreLogger(logger: BridgeLogger): { warn(message: string): void } {

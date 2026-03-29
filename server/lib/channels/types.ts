@@ -11,6 +11,7 @@ export type ChannelIdentity = {
 
 export type Channel = {
   id: string
+  sourceIndex: number
   identity: ChannelIdentity
   tvgId?: string
   number?: string

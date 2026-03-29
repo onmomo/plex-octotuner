@@ -21,7 +21,7 @@ v1 supports same-LAN Linux Docker deployments with `--network host` only.
 | `PORT` | Recommended | Nitro bind port; must match `SERVER_PORT` and `ADVERTISED_BASE_URL` |
 | `M3U_URL` | Yes | octopus-generated playlist URL |
 | `ADVERTISED_BASE_URL` | Yes | LAN-reachable origin Plex uses, with explicit port and no path/query |
-| `HDHR_DEVICE_ID` | Yes | Unique 8-character uppercase hexadecimal ID on your LAN |
+| `HDHR_DEVICE_ID` | No | Defaults to `105A1B22`; override with a unique 8-character uppercase hexadecimal ID on your LAN |
 | `HDHR_DEVICE_AUTH` | No | Defaults to `octotuner-<HDHR_DEVICE_ID>` |
 | `HDHR_FRIENDLY_NAME` | No | Defaults to `octotuner` |
 | `HDHR_TUNER_COUNT` | No | Defaults to `4` |

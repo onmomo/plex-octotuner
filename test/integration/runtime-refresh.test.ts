@@ -8,7 +8,7 @@ const sampleUpdatedPlaylist = readFileSync(new URL('../fixtures/m3u/sample-updat
 const validEnv = {
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C',
+  HDHR_DEVICE_ID: '105A1B22',
   PLAYLIST_REFRESH_SECONDS: '2'
 }
 

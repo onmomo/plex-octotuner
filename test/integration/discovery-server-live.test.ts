@@ -3,12 +3,62 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadBridgeConfig } from '../../server/lib/config'
 import { buildHdhomerunDiscoveryReply } from '../../server/lib/discovery/hdhomerun-packets'
 import { startDiscoveryServer } from '../../server/lib/discovery/server'
+import { encodeHdhomerunVarLength } from '../../server/lib/discovery/hdhomerun-tlv'
 
 const config = loadBridgeConfig({
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://127.0.0.1:34400',
-  HDHR_DEVICE_ID: '105A1B2C'
+  HDHR_DEVICE_ID: '105A1B22'
 })
+
+const HDHOMERUN_TYPE_DISCOVER_REQ = 0x0002
+const HDHOMERUN_TAG_DEVICE_TYPE = 0x01
+const HDHOMERUN_TAG_DEVICE_ID = 0x02
+const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
+const HDHOMERUN_DEVICE_ID_WILDCARD = 0xFFFFFFFF
+
+function calculateCrc32(data: Buffer): number {
+  let crc = 0xFFFFFFFF
+
+  for (const byte of data) {
+    crc ^= byte
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((crc & 1) !== 0) {
+        crc = (crc >>> 1) ^ 0xEDB88320
+      } else {
+        crc >>>= 1
+      }
+    }
+  }
+
+  return (crc ^ 0xFFFFFFFF) >>> 0
+}
+
+function encodeTag(tag: number, value: Buffer): Buffer {
+  return Buffer.concat([Buffer.from([tag]), encodeHdhomerunVarLength(value.length), value])
+}
+
+function buildDiscoverRequest(): Buffer {
+  const payload = Buffer.concat([
+    encodeTag(HDHOMERUN_TAG_DEVICE_TYPE, Buffer.from([
+      0x00, 0x00, 0x00, HDHOMERUN_DEVICE_TYPE_TUNER
+    ])),
+    encodeTag(HDHOMERUN_TAG_DEVICE_ID, Buffer.from([
+      (HDHOMERUN_DEVICE_ID_WILDCARD >>> 24) & 0xFF,
+      (HDHOMERUN_DEVICE_ID_WILDCARD >>> 16) & 0xFF,
+      (HDHOMERUN_DEVICE_ID_WILDCARD >>> 8) & 0xFF,
+      HDHOMERUN_DEVICE_ID_WILDCARD & 0xFF
+    ]))
+  ])
+  const header = Buffer.alloc(4)
+  header.writeUInt16BE(HDHOMERUN_TYPE_DISCOVER_REQ, 0)
+  header.writeUInt16BE(payload.length, 2)
+  const packet = Buffer.concat([header, payload])
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32LE(calculateCrc32(packet), 0)
+  return Buffer.concat([packet, crc])
+}
 
 function bindSocket(socket: Socket, port = 0, address = '127.0.0.1'): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -132,6 +182,7 @@ describe('discovery server live UDP responders', () => {
         ssdpPort,
         hdhomerunPort,
         joinSsdpMulticast: false,
+        startControl: false,
         startupNotify: false
       }
     )
@@ -150,7 +201,7 @@ describe('discovery server live UDP responders', () => {
     const ssdpResponse = await ssdpReply
     expect(ssdpResponse.remote.port).toBe(ssdpPort)
     expect(ssdpResponse.message.toString('utf8')).toContain('HTTP/1.1 200 OK')
-    expect(ssdpResponse.message.toString('utf8')).toContain('ST: ssdp:all')
+    expect(ssdpResponse.message.toString('utf8')).toContain('ST: upnp:rootdevice')
 
     const hdhomerunClient = createSocket('udp4')
     socketsToClose.push(hdhomerunClient)
@@ -159,7 +210,7 @@ describe('discovery server live UDP responders', () => {
 
     await sendMessage(
       hdhomerunClient,
-      Buffer.from([0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+      buildDiscoverRequest(),
       hdhomerunPort
     )
 

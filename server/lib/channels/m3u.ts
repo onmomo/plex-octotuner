@@ -15,7 +15,7 @@ type ParsedChannel = Channel & {
   lineNumber: number
 }
 
-const ALLOWED_SCHEMES = new Set(['http:', 'https:'])
+const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'rtsp:', 'rtsps:'])
 
 function hasNumericGuideNumber(value: string | undefined): value is string {
   return value !== undefined && /^\d+$/.test(value)
@@ -135,6 +135,7 @@ function buildChannel(pending: PendingChannel, streamUrl: string): Channel {
 
   return {
     id: buildChannelId(identity.key),
+    sourceIndex: 0,
     identity,
     tvgId: pending.tvgId,
     number: pending.number,
@@ -148,6 +149,7 @@ function buildChannel(pending: PendingChannel, streamUrl: string): Channel {
 export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] {
   const channels: ParsedChannel[] = []
   let pending: PendingChannel | null = null
+  let sourceIndex = 0
 
   const finalizePending = (streamUrl: string): void => {
     if (!pending) {
@@ -157,8 +159,10 @@ export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] 
     const channel = buildChannel(pending, streamUrl)
     channels.push({
       ...channel,
+      sourceIndex,
       lineNumber: pending.lineNumber
     })
+    sourceIndex += 1
 
     pending = null
   }
@@ -230,6 +234,7 @@ export function parseM3U(playlist: string, options: ParseM3UOptions): Channel[] 
     seen.add(channel.identity.key)
     orderedChannels.push({
       id: channel.id,
+      sourceIndex: channel.sourceIndex,
       identity: channel.identity,
       tvgId: channel.tvgId,
       number: channel.number,

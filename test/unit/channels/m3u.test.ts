@@ -11,14 +11,15 @@ describe('parseM3U', () => {
 
     expect(parseM3U(samplePlaylist, { logger }).map((channel) => ({
       number: channel.number,
-      name: channel.name
+      name: channel.name,
+      sourceIndex: channel.sourceIndex
     }))).toEqual([
-      { number: '100', name: 'Quoted Comma Channel' },
-      { number: '101', name: 'Das Erste HD' },
-      { number: '103', name: 'ZDF HD' },
-      { number: undefined, name: 'alpha Channel' },
-      { number: undefined, name: 'Zulu Channel' },
-      { number: undefined, name: 'Ärger Channel' }
+      { number: '100', name: 'Quoted Comma Channel', sourceIndex: 0 },
+      { number: '101', name: 'Das Erste HD', sourceIndex: 3 },
+      { number: '103', name: 'ZDF HD', sourceIndex: 6 },
+      { number: undefined, name: 'alpha Channel', sourceIndex: 4 },
+      { number: undefined, name: 'Zulu Channel', sourceIndex: 2 },
+      { number: undefined, name: 'Ärger Channel', sourceIndex: 5 }
     ])
   })
 
@@ -31,28 +32,34 @@ describe('parseM3U', () => {
       expect.objectContaining({
         number: '100',
         name: 'Quoted Comma Channel',
+        sourceIndex: 0,
         groupTitle: 'News, Regional',
         streamUrl: 'http://octopus.local:8888/stream/channel/0?descramble=1'
       }),
       expect.objectContaining({
         number: '101',
         name: 'Das Erste HD',
+        sourceIndex: 3,
         logoUrl: 'http://octopus.local/logos/daserste.png',
         groupTitle: 'German HD',
         streamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
       }),
       expect.objectContaining({
         number: '103',
-        name: 'ZDF HD'
+        name: 'ZDF HD',
+        sourceIndex: 6
       }),
       expect.objectContaining({
-        name: 'alpha Channel'
+        name: 'alpha Channel',
+        sourceIndex: 4
       }),
       expect.objectContaining({
-        name: 'Zulu Channel'
+        name: 'Zulu Channel',
+        sourceIndex: 2
       }),
       expect.objectContaining({
-        name: 'Ärger Channel'
+        name: 'Ärger Channel',
+        sourceIndex: 5
       })
     ])
 
@@ -70,6 +77,21 @@ describe('parseM3U', () => {
     }))
     expect(channels.every((channel) => channel.id.length === 12)).toBe(true)
     expect(new Set(channels.map((channel) => channel.id)).size).toBe(channels.length)
+  })
+
+  it('accepts rtsp stream urls for pass-through playback', () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const playlist = `#EXTM3U
+#EXTINF:0,Discovery HD
+rtsp://10.0.1.195:554/?freq=298&x_ci=1`
+
+    expect(parseM3U(playlist, { logger })).toEqual([
+      expect.objectContaining({
+        name: 'Discovery HD',
+        streamUrl: 'rtsp://10.0.1.195:554/?freq=298&x_ci=1'
+      })
+    ])
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('drops invalid channels and redacts warnings', () => {

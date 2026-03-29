@@ -7,6 +7,7 @@ const HDHOMERUN_TAG_DEVICE_ID = 0x02
 const HDHOMERUN_TAG_TUNER_COUNT = 0x10
 const HDHOMERUN_TAG_LINEUP_URL = 0x27
 const HDHOMERUN_TAG_BASE_URL = 0x2A
+const HDHOMERUN_TAG_DEVICE_AUTH_STR = 0x2B
 const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 
 function encodeTag(tag: number, value: Buffer): Buffer {
@@ -46,16 +47,18 @@ function calculateCrc32(data: Buffer): number {
 }
 
 export function buildHdhomerunDiscoveryReply(config: BridgeConfig): Buffer {
-  const baseUrl = config.advertisedBaseUrl.origin
   const deviceType = Buffer.alloc(4)
   deviceType.writeUInt32BE(HDHOMERUN_DEVICE_TYPE_TUNER, 0)
+  const baseUrl = config.advertisedBaseUrl.origin
+  const lineupUrl = `${baseUrl}/lineup.json`
 
   const payload = Buffer.concat([
-    encodeTag(HDHOMERUN_TAG_DEVICE_TYPE, deviceType),
     encodeTag(HDHOMERUN_TAG_DEVICE_ID, Buffer.from(config.deviceId, 'hex')),
+    encodeTag(HDHOMERUN_TAG_DEVICE_TYPE, deviceType),
+    encodeTag(HDHOMERUN_TAG_TUNER_COUNT, Buffer.from([config.tunerCount])),
+    encodeTag(HDHOMERUN_TAG_DEVICE_AUTH_STR, Buffer.from(config.deviceAuth, 'utf8')),
     encodeTag(HDHOMERUN_TAG_BASE_URL, Buffer.from(baseUrl, 'utf8')),
-    encodeTag(HDHOMERUN_TAG_LINEUP_URL, Buffer.from(`${baseUrl}/lineup.json`, 'utf8')),
-    encodeTag(HDHOMERUN_TAG_TUNER_COUNT, Buffer.from([config.tunerCount]))
+    encodeTag(HDHOMERUN_TAG_LINEUP_URL, Buffer.from(lineupUrl, 'utf8'))
   ])
 
   return buildFrame(HDHOMERUN_TYPE_DISCOVER_RPY, payload)
@@ -63,9 +66,10 @@ export function buildHdhomerunDiscoveryReply(config: BridgeConfig): Buffer {
 
 export {
   HDHOMERUN_DEVICE_TYPE_TUNER,
-  HDHOMERUN_TAG_BASE_URL,
   HDHOMERUN_TAG_DEVICE_ID,
+  HDHOMERUN_TAG_DEVICE_AUTH_STR,
   HDHOMERUN_TAG_DEVICE_TYPE,
+  HDHOMERUN_TAG_BASE_URL,
   HDHOMERUN_TAG_LINEUP_URL,
   HDHOMERUN_TAG_TUNER_COUNT,
   HDHOMERUN_TYPE_DISCOVER_RPY

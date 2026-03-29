@@ -95,12 +95,78 @@ import {
   sendStartupNotify,
   startDiscoveryServer
 } from '../../../server/lib/discovery/server'
+import { encodeHdhomerunVarLength } from '../../../server/lib/discovery/hdhomerun-tlv'
 
 const config = loadBridgeConfig({
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C'
+  HDHR_DEVICE_ID: '105A1B22'
 })
+
+const HDHOMERUN_TYPE_DISCOVER_REQ = 0x0002
+const HDHOMERUN_TAG_DEVICE_TYPE = 0x01
+const HDHOMERUN_TAG_DEVICE_ID = 0x02
+const HDHOMERUN_TAG_MULTI_TYPE = 0x2D
+const HDHOMERUN_DEVICE_TYPE_WILDCARD = 0xFFFFFFFF
+const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
+const HDHOMERUN_DEVICE_TYPE_STORAGE = 0x00000005
+const HDHOMERUN_DEVICE_ID_WILDCARD = 0xFFFFFFFF
+
+function calculateCrc32(data: Buffer): number {
+  let crc = 0xFFFFFFFF
+
+  for (const byte of data) {
+    crc ^= byte
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      if ((crc & 1) !== 0) {
+        crc = (crc >>> 1) ^ 0xEDB88320
+      } else {
+        crc >>>= 1
+      }
+    }
+  }
+
+  return (crc ^ 0xFFFFFFFF) >>> 0
+}
+
+function encodeTag(tag: number, value: Buffer): Buffer {
+  return Buffer.concat([Buffer.from([tag]), encodeHdhomerunVarLength(value.length), value])
+}
+
+function buildDiscoverRequest(options: { deviceTypes: number[], deviceId?: number }): Buffer {
+  const typePayload = options.deviceTypes.length === 1
+    ? encodeTag(HDHOMERUN_TAG_DEVICE_TYPE, Buffer.from([
+      (options.deviceTypes[0]! >>> 24) & 0xFF,
+      (options.deviceTypes[0]! >>> 16) & 0xFF,
+      (options.deviceTypes[0]! >>> 8) & 0xFF,
+      options.deviceTypes[0]! & 0xFF
+    ]))
+    : encodeTag(HDHOMERUN_TAG_MULTI_TYPE, Buffer.concat(options.deviceTypes.map((deviceType) => Buffer.from([
+      (deviceType >>> 24) & 0xFF,
+      (deviceType >>> 16) & 0xFF,
+      (deviceType >>> 8) & 0xFF,
+      deviceType & 0xFF
+    ]))))
+
+  const deviceIdPayload = options.deviceId === undefined
+    ? []
+    : [encodeTag(HDHOMERUN_TAG_DEVICE_ID, Buffer.from([
+      (options.deviceId >>> 24) & 0xFF,
+      (options.deviceId >>> 16) & 0xFF,
+      (options.deviceId >>> 8) & 0xFF,
+      options.deviceId & 0xFF
+    ]))]
+
+  const payload = Buffer.concat([typePayload, ...deviceIdPayload])
+  const header = Buffer.alloc(4)
+  header.writeUInt16BE(HDHOMERUN_TYPE_DISCOVER_REQ, 0)
+  header.writeUInt16BE(payload.length, 2)
+  const packet = Buffer.concat([header, payload])
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32LE(calculateCrc32(packet), 0)
+  return Buffer.concat([packet, crc])
+}
 
 describe('discovery server responders', () => {
   beforeEach(() => {
@@ -153,7 +219,7 @@ describe('discovery server responders', () => {
     )
     expect(send).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining('ST: ssdp:all'),
+      expect.stringContaining('ST: upnp:rootdevice'),
       '192.168.1.21',
       54546
     )
@@ -167,7 +233,10 @@ describe('discovery server responders', () => {
     await handleHdhomerunDiscoveryRequest({
       config,
       logger,
-      message: Buffer.from([0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+      message: buildDiscoverRequest({
+        deviceTypes: [HDHOMERUN_DEVICE_TYPE_TUNER],
+        deviceId: HDHOMERUN_DEVICE_ID_WILDCARD
+      }),
       remoteAddress: '192.168.1.30',
       remotePort: 65001,
       send
@@ -178,10 +247,62 @@ describe('discovery server responders', () => {
       '192.168.1.30',
       65001
     )
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('hdhomerun discovery request'), {
-      address: '192.168.1.30',
-      port: 65001
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it('ignores discovery probes for unsupported device types or a different explicit device id', async () => {
+    const send = vi.fn()
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+
+    await handleHdhomerunDiscoveryRequest({
+      config,
+      logger,
+      message: buildDiscoverRequest({
+        deviceTypes: [HDHOMERUN_DEVICE_TYPE_STORAGE],
+        deviceId: HDHOMERUN_DEVICE_ID_WILDCARD
+      }),
+      remoteAddress: '192.168.1.31',
+      remotePort: 65001,
+      send
     })
+
+    await handleHdhomerunDiscoveryRequest({
+      config,
+      logger,
+      message: buildDiscoverRequest({
+        deviceTypes: [HDHOMERUN_DEVICE_TYPE_TUNER],
+        deviceId: 0x105A1B24
+      }),
+      remoteAddress: '192.168.1.32',
+      remotePort: 65001,
+      send
+    })
+
+    expect(send).not.toHaveBeenCalled()
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it('replies to multi-type discovery probes when tuner support is requested', async () => {
+    const send = vi.fn()
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+
+    await handleHdhomerunDiscoveryRequest({
+      config,
+      logger,
+      message: buildDiscoverRequest({
+        deviceTypes: [HDHOMERUN_DEVICE_TYPE_STORAGE, HDHOMERUN_DEVICE_TYPE_TUNER],
+        deviceId: Number.parseInt(config.deviceId, 16)
+      }),
+      remoteAddress: '192.168.1.33',
+      remotePort: 65001,
+      send
+    })
+
+    expect(send).toHaveBeenCalledWith(
+      buildHdhomerunDiscoveryReply(config),
+      '192.168.1.33',
+      65001
+    )
   })
 
   it('binds both discovery sockets, joins SSDP multicast, and closes both sockets on stop', async () => {
@@ -194,7 +315,7 @@ describe('discovery server responders', () => {
       stop: vi.fn()
     }
 
-    const handle = await startDiscoveryServer(runtime)
+    const handle = await startDiscoveryServer(runtime, undefined, { startControl: false })
 
     expect(dgramMock.createSocket).toHaveBeenCalledTimes(2)
     expect(dgramMock.state.created[0]?.socket.bind).toHaveBeenCalledWith(1900, expect.any(Function))
@@ -216,7 +337,10 @@ describe('discovery server responders', () => {
     })
     dgramMock.state.created[1]?.handlers.get('message')?.forEach((handler) => {
       handler(
-        Buffer.from([0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        buildDiscoverRequest({
+          deviceTypes: [HDHOMERUN_DEVICE_TYPE_TUNER],
+          deviceId: HDHOMERUN_DEVICE_ID_WILDCARD
+        }),
         { address: '192.168.1.41', port: 65001 }
       )
     })
@@ -254,7 +378,7 @@ describe('discovery server responders', () => {
     const handle = await startDiscoveryServer(
       runtime,
       undefined,
-      { bindAddress: '192.168.1.77' }
+      { bindAddress: '192.168.1.77', startControl: false }
     )
 
     expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250', '192.168.1.77')
@@ -267,7 +391,7 @@ describe('discovery server responders', () => {
     const hostnameConfig = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://octopus.local:34400',
-      HDHR_DEVICE_ID: '105A1B2C'
+      HDHR_DEVICE_ID: '105A1B22'
     })
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
     const runtime = {
@@ -278,7 +402,7 @@ describe('discovery server responders', () => {
       stop: vi.fn()
     }
 
-    const handle = await startDiscoveryServer(runtime)
+    const handle = await startDiscoveryServer(runtime, undefined, { startControl: false })
 
     expect(dgramMock.state.created[0]?.socket.addMembership).toHaveBeenCalledWith('239.255.255.250')
     expect(dgramMock.state.created[0]?.socket.setMulticastInterface).not.toHaveBeenCalled()
@@ -304,6 +428,7 @@ describe('discovery server responders', () => {
         ssdpPort: 1901,
         hdhomerunPort: 65002,
         joinSsdpMulticast: false,
+        startControl: false,
         startupNotify: false
       }
     )

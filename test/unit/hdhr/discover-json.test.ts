@@ -5,8 +5,8 @@ describe('buildDiscoverJson', () => {
   it('serializes the HDHomeRun discovery contract', () => {
     const config: DiscoverJsonInput = {
       friendlyName: 'octotuner',
-      deviceId: '105A1B2C',
-      deviceAuth: 'octotuner-105A1B2C',
+      deviceId: '105A1B22',
+      deviceAuth: 'octotuner-105A1B22',
       advertisedBaseUrl: new URL('http://192.168.1.50:34400'),
       tunerCount: 4
     }
@@ -17,8 +17,8 @@ describe('buildDiscoverJson', () => {
       ModelNumber: 'HDTC-2US',
       FirmwareName: 'hdhomeruntc_atsc',
       FirmwareVersion: '20150826',
-      DeviceID: '105A1B2C',
-      DeviceAuth: 'octotuner-105A1B2C',
+      DeviceID: '105A1B22',
+      DeviceAuth: 'octotuner-105A1B22',
       BaseURL: 'http://192.168.1.50:34400',
       LineupURL: 'http://192.168.1.50:34400/lineup.json',
       TunerCount: 4

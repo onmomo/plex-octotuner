@@ -5,8 +5,8 @@ import { getBridgeRuntime } from '../../plugins/runtime.server'
 
 export { buildDeviceUdn } from '../../lib/hdhr/device-identity'
 
-export default defineEventHandler((event) => {
-  const runtime = getBridgeRuntime()
+export default defineEventHandler(async (event) => {
+  const runtime = await getBridgeRuntime()
 
   setResponseHeader(event, 'content-type', 'application/xml; charset=utf-8')
 

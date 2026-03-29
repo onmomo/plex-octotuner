@@ -6,10 +6,19 @@ import { createBridgeRuntime } from '../lib/runtime'
 
 type NitroAppWithRuntime = ReturnType<typeof useNitroApp> & {
   localRuntime?: BridgeRuntime
+  localRuntimeReady?: Promise<BridgeRuntime>
 }
 
-export function getBridgeRuntime(): BridgeRuntime {
+export async function getBridgeRuntime(): Promise<BridgeRuntime> {
   const nitroApp = useNitroApp() as NitroAppWithRuntime
+
+  if (nitroApp.localRuntime) {
+    return nitroApp.localRuntime
+  }
+
+  if (nitroApp.localRuntimeReady) {
+    return nitroApp.localRuntimeReady
+  }
 
   if (!nitroApp.localRuntime) {
     throw new Error('bridge runtime unavailable')
@@ -22,11 +31,12 @@ export default defineNitroPlugin(async (nitroApp) => {
   const runtimeApp = nitroApp as NitroAppWithRuntime
   const logger = createLogger()
 
-  runtimeApp.localRuntime = await createBridgeRuntime({
+  runtimeApp.localRuntimeReady = createBridgeRuntime({
     env: process.env,
     logger,
     startDiscovery: startDiscoveryServer
   })
+  runtimeApp.localRuntime = await runtimeApp.localRuntimeReady
 
   nitroApp.hooks.hookOnce('close', async () => {
     await runtimeApp.localRuntime?.stop?.()

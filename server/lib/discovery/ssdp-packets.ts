@@ -1,49 +1,63 @@
 import type { BridgeConfig } from '../config'
 import { buildDeviceUdn } from '../hdhr/device-identity'
-import { HDHR_DEVICE_PROFILE } from '../hdhr/profile'
 
 const SSDP_MULTICAST_HOST = '239.255.255.250'
 const SSDP_MULTICAST_PORT = 1900
 const SSDP_ROOT_DEVICE_TARGET = 'upnp:rootdevice'
+const SSDP_ALL_TARGET = 'ssdp:all'
 const SSDP_CACHE_MAX_AGE_SECONDS = 1800
+const XTEVE_SSDP_SERVER = 'xTeVe'
 
 function buildSsdpLocation(config: BridgeConfig): string {
-  return new URL('/dri/device.xml', config.advertisedBaseUrl).toString()
+  return new URL('/device.xml', config.advertisedBaseUrl).toString()
 }
 
-function buildSsdpServerHeader(): string {
-  return `${HDHR_DEVICE_PROFILE.manufacturer}/${HDHR_DEVICE_PROFILE.firmwareVersion} UPnP/1.0 ${HDHR_DEVICE_PROFILE.modelNumber}/${HDHR_DEVICE_PROFILE.firmwareVersion}`
-}
-
-function buildSsdpUsn(config: BridgeConfig): string {
-  return `${buildDeviceUdn(config.deviceId)}::${SSDP_ROOT_DEVICE_TARGET}`
+function buildSsdpUsn(config: BridgeConfig, searchTarget: string): string {
+  return `${buildDeviceUdn(config.deviceId)}::${searchTarget}`
 }
 
 function finalizePacket(lines: string[]): string {
   return `${lines.join('\r\n')}\r\n\r\n`
 }
 
-export function buildSsdpNotify(config: BridgeConfig): string {
+function buildNotifyPacket(config: BridgeConfig): string {
   return finalizePacket([
     'NOTIFY * HTTP/1.1',
     `HOST: ${SSDP_MULTICAST_HOST}:${SSDP_MULTICAST_PORT}`,
     `NT: ${SSDP_ROOT_DEVICE_TARGET}`,
     'NTS: ssdp:alive',
+    `USN: ${buildSsdpUsn(config, SSDP_ROOT_DEVICE_TARGET)}`,
     `LOCATION: ${buildSsdpLocation(config)}`,
-    `CACHE-CONTROL: max-age=${SSDP_CACHE_MAX_AGE_SECONDS}`,
-    `SERVER: ${buildSsdpServerHeader()}`,
-    `USN: ${buildSsdpUsn(config)}`
+    `SERVER: ${XTEVE_SSDP_SERVER}`,
+    `CACHE-CONTROL: max-age=${SSDP_CACHE_MAX_AGE_SECONDS}`
   ])
 }
 
-export function buildSsdpSearchResponse(config: BridgeConfig, searchTarget: string): string {
+function buildSearchResponsePacket(config: BridgeConfig): string {
   return finalizePacket([
     'HTTP/1.1 200 OK',
-    `CACHE-CONTROL: max-age=${SSDP_CACHE_MAX_AGE_SECONDS}`,
     'EXT:',
+    `ST: ${SSDP_ROOT_DEVICE_TARGET}`,
+    `USN: ${buildSsdpUsn(config, SSDP_ROOT_DEVICE_TARGET)}`,
     `LOCATION: ${buildSsdpLocation(config)}`,
-    `SERVER: ${buildSsdpServerHeader()}`,
-    `ST: ${searchTarget}`,
-    `USN: ${buildSsdpUsn(config)}`
+    `SERVER: ${XTEVE_SSDP_SERVER}`,
+    `CACHE-CONTROL: max-age=${SSDP_CACHE_MAX_AGE_SECONDS}`
   ])
+}
+
+export function buildSsdpNotifyPackets(config: BridgeConfig): string[] {
+  return [buildNotifyPacket(config)]
+}
+
+export function buildSsdpSearchResponses(config: BridgeConfig, searchTarget: string): string[] {
+  if (searchTarget === SSDP_ALL_TARGET || searchTarget === SSDP_ROOT_DEVICE_TARGET) {
+    return [buildSearchResponsePacket(config)]
+  }
+
+  return []
+}
+
+export {
+  SSDP_ALL_TARGET,
+  SSDP_ROOT_DEVICE_TARGET
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BridgeRuntime } from '../../server/lib/runtime'
 
 const {
@@ -31,8 +31,30 @@ vi.mock('nitropack/runtime', () => ({
 }))
 
 import runtimePlugin from '../../server/plugins/runtime.server'
+import { getBridgeRuntime } from '../../server/plugins/runtime.server'
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve
+    reject = nextReject
+  })
+
+  return { promise, resolve, reject }
+}
 
 describe('runtime Nitro plugin', () => {
+  beforeEach(() => {
+    createBridgeRuntimeMock.mockReset()
+    createLoggerMock.mockReset()
+    startDiscoveryServerMock.mockReset()
+    delete mockNitroApp.localRuntime
+    delete (mockNitroApp as { localRuntimeReady?: Promise<BridgeRuntime> }).localRuntimeReady
+    delete (mockNitroApp as { hooks?: unknown }).hooks
+  })
+
   it('creates and attaches the bridge runtime at startup and stops it on close', async () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), sink: [] }
     const stop = vi.fn(async () => {})
@@ -42,7 +64,7 @@ describe('runtime Nitro plugin', () => {
     createLoggerMock.mockReturnValue(logger)
     createBridgeRuntimeMock.mockResolvedValue(runtime)
 
-    const nitroApp = {
+    const nitroApp = Object.assign(mockNitroApp, {
       hooks: {
         hookOnce(name: string, handler: () => Promise<void>) {
           if (name === 'close') {
@@ -50,7 +72,7 @@ describe('runtime Nitro plugin', () => {
           }
         }
       }
-    }
+    })
 
     await runtimePlugin(nitroApp as never)
 
@@ -65,5 +87,37 @@ describe('runtime Nitro plugin', () => {
     await closeHook?.()
 
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for runtime startup when a request asks for the bridge runtime early', async () => {
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), sink: [] }
+    const deferred = createDeferred<BridgeRuntime>()
+    const runtime = { stop: vi.fn(async () => {}) } as BridgeRuntime
+
+    createLoggerMock.mockReturnValue(logger)
+    createBridgeRuntimeMock.mockReturnValue(deferred.promise)
+
+    const nitroApp = Object.assign(mockNitroApp, {
+      hooks: {
+        hookOnce() {}
+      }
+    })
+
+    const pluginPromise = runtimePlugin(nitroApp as never)
+    const runtimePromise = getBridgeRuntime()
+
+    let resolved = false
+    void runtimePromise.then(() => {
+      resolved = true
+    })
+
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+
+    deferred.resolve(runtime)
+
+    await expect(runtimePromise).resolves.toBe(runtime)
+    await pluginPromise
+    expect((nitroApp as { localRuntime?: BridgeRuntime }).localRuntime).toBe(runtime)
   })
 })

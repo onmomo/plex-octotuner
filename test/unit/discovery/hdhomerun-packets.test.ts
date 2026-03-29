@@ -8,12 +8,13 @@ const HDHOMERUN_TAG_DEVICE_ID = 0x02
 const HDHOMERUN_TAG_TUNER_COUNT = 0x10
 const HDHOMERUN_TAG_LINEUP_URL = 0x27
 const HDHOMERUN_TAG_BASE_URL = 0x2A
+const HDHOMERUN_TAG_DEVICE_AUTH_STR = 0x2B
 const HDHOMERUN_DEVICE_TYPE_TUNER = 0x00000001
 
 const config = loadBridgeConfig({
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C',
+  HDHR_DEVICE_ID: '105A1B22',
   HDHR_TUNER_COUNT: '4'
 })
 
@@ -49,20 +50,23 @@ function decodeTags(packet: Buffer) {
     const value = packet.subarray(valueOffset, valueOffset + lengthInfo.value)
 
     switch (tag) {
-      case HDHOMERUN_TAG_DEVICE_TYPE:
-        decoded.DeviceType = value.readUInt32BE(0)
-        break
       case HDHOMERUN_TAG_DEVICE_ID:
         decoded.DeviceID = value.toString('hex').toUpperCase()
         break
-      case HDHOMERUN_TAG_BASE_URL:
-        decoded.BaseURL = value.toString('utf8')
+      case HDHOMERUN_TAG_DEVICE_TYPE:
+        decoded.DeviceType = value.readUInt32BE(0)
+        break
+      case HDHOMERUN_TAG_TUNER_COUNT:
+        decoded.TunerCount = value.readUInt8(0)
         break
       case HDHOMERUN_TAG_LINEUP_URL:
         decoded.LineupURL = value.toString('utf8')
         break
-      case HDHOMERUN_TAG_TUNER_COUNT:
-        decoded.TunerCount = value.readUInt8(0)
+      case HDHOMERUN_TAG_BASE_URL:
+        decoded.BaseURL = value.toString('utf8')
+        break
+      case HDHOMERUN_TAG_DEVICE_AUTH_STR:
+        decoded.DeviceAuth = value.toString('utf8')
         break
     }
 
@@ -97,14 +101,15 @@ describe('buildHdhomerunDiscoveryReply', () => {
     const trailerOffset = packet.length - 4
 
     expect(decodeTags(packet)).toMatchObject({
+      DeviceID: '105A1B22',
       DeviceType: HDHOMERUN_DEVICE_TYPE_TUNER,
-      DeviceID: '105A1B2C',
+      TunerCount: 4,
+      DeviceAuth: 'octotuner-105A1B22',
       BaseURL: 'http://192.168.1.50:34400',
-      LineupURL: 'http://192.168.1.50:34400/lineup.json',
-      TunerCount: 4
+      LineupURL: 'http://192.168.1.50:34400/lineup.json'
     })
-    expect(payloadLength).toBe(81)
-    expect(packet.length).toBe(89)
+    expect(payloadLength).toBeGreaterThan(15)
+    expect(packet.length).toBe(4 + payloadLength + 4)
     expect(packet.readUInt32LE(trailerOffset)).toBe(calculateCrc32(packet.subarray(0, trailerOffset)))
   })
 
@@ -112,7 +117,7 @@ describe('buildHdhomerunDiscoveryReply', () => {
     const maxConfig = loadBridgeConfig({
       M3U_URL: 'http://octopus.local/playlist.m3u',
       ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-      HDHR_DEVICE_ID: '105A1B2C',
+      HDHR_DEVICE_ID: '105A1B22',
       HDHR_TUNER_COUNT: '255'
     })
 

@@ -28,7 +28,7 @@ const samplePlaylist = readFileSync(new URL('../fixtures/m3u/sample.m3u', import
 const validEnv = {
   M3U_URL: 'http://octopus.local/playlist.m3u',
   ADVERTISED_BASE_URL: 'http://192.168.1.50:34400',
-  HDHR_DEVICE_ID: '105A1B2C',
+  HDHR_DEVICE_ID: '105A1B22',
   HDHR_TUNER_COUNT: '2'
 }
 
@@ -89,8 +89,8 @@ describe('required bridge http routes', () => {
   it('serves discover and lineup status contracts', async () => {
     expect(await $fetch('/discover.json')).toMatchObject({
       FriendlyName: 'octotuner',
-      DeviceID: '105A1B2C',
-      DeviceAuth: 'octotuner-105A1B2C',
+      DeviceID: '105A1B22',
+      DeviceAuth: 'octotuner-105A1B22',
       Manufacturer: 'Silicondust',
       ModelNumber: 'HDTC-2US',
       FirmwareName: 'hdhomeruntc_atsc',
@@ -99,7 +99,6 @@ describe('required bridge http routes', () => {
       LineupURL: 'http://192.168.1.50:34400/lineup.json',
       TunerCount: 2
     })
-
     expect(await $fetch('/lineup_status.json')).toEqual({
       ScanInProgress: 0,
       ScanPossible: 0,
@@ -111,19 +110,29 @@ describe('required bridge http routes', () => {
   it('serves lineup and device xml aliases and accepts lineup post requests', async () => {
     const lineup = await $fetch('/lineup.json')
     const numberedChannel = runtime.store.getChannels().find((channel) => channel.number === '101')
+    const fallbackNumberedChannel = runtime.store.getChannels().find((channel) => channel.name === 'Zulu Channel')
 
     expect(lineup).toContainEqual(expect.objectContaining({
       GuideNumber: '101',
       GuideName: 'Das Erste HD',
       URL: `http://192.168.1.50:34400/auto/v${numberedChannel?.id}`
     }))
-    expect(runtime.logger.info).toHaveBeenCalledWith(expect.stringContaining('lineup request'))
-
+    expect(lineup).toContainEqual(expect.objectContaining({
+      GuideNumber: '3',
+      GuideName: 'Zulu Channel',
+      URL: `http://192.168.1.50:34400/auto/v${fallbackNumberedChannel?.id}`
+    }))
     const aliasXml = await $fetch('/device.xml')
     const driXml = await $fetch('/dri/device.xml')
     expect(aliasXml).toBe(driXml)
-    expect(aliasXml).toContain(`<UDN>${buildDeviceUdn('105A1B2C')}</UDN>`)
-    expect(aliasXml).toMatch(/<UDN>uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}<\/UDN>/)
+    expect(aliasXml).toContain('<URLBase>http://192.168.1.50:34400</URLBase>')
+    expect(aliasXml).toContain('<friendlyName>octotuner</friendlyName>')
+    expect(aliasXml).toContain('<modelName>HDTC-2US</modelName>')
+    expect(aliasXml).toContain('<serialNumber></serialNumber>')
+    expect(aliasXml).toContain(`<UDN>${buildDeviceUdn('105A1B22')}</UDN>`)
+    expect(aliasXml).toContain('<UDN>uuid:105A1B22</UDN>')
+    expect(aliasXml).not.toContain('<presentationURL>')
+    expect(aliasXml).not.toContain('<serviceList>')
 
     const lineupPost = await localFetch('/lineup.post', {
       method: 'POST',
@@ -140,7 +149,11 @@ describe('required bridge http routes', () => {
     expect(redirect.status).toBe(302)
     expect(redirect.headers.get('cache-control')).toBe('no-store')
     expect(redirect.headers.get('location')).toBe('http://octopus.local:8888/stream/channel/1?descramble=1')
-    expect(runtime.logger.info).toHaveBeenCalledWith(expect.stringContaining('channel request'))
+    expect(runtime.logger.info).toHaveBeenLastCalledWith('channel playback started', {
+      channelId,
+      channelName: 'Das Erste HD',
+      upstreamUrl: 'http://octopus.local:8888/stream/channel/1'
+    })
 
     await expect($fetch('/auto/vunknown')).rejects.toMatchObject({ statusCode: 404 })
   })
