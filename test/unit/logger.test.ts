@@ -44,6 +44,19 @@ describe('createLogger', () => {
     expect(logger.sink[0]).not.toContain('user:pass@')
   })
 
+  it('preserves the full upstream url for playback start logs only', () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    const logger = createLogger()
+
+    logger.info('channel playback started', {
+      channelId: '2ef7f254bca6',
+      channelName: 'Das Erste HD',
+      upstreamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
+    })
+
+    expect(logger.sink[0]).toContain('"upstreamUrl":"http://octopus.local:8888/stream/channel/1?descramble=1"')
+  })
+
   it('bounds the in-memory sink for long-lived service use', () => {
     const writer = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     const logger = createLogger(writer, 2)

@@ -152,7 +152,7 @@ describe('required bridge http routes', () => {
     expect(runtime.logger.info).toHaveBeenLastCalledWith('channel playback started', {
       channelId,
       channelName: 'Das Erste HD',
-      upstreamUrl: 'http://octopus.local:8888/stream/channel/1'
+      upstreamUrl: 'http://octopus.local:8888/stream/channel/1?descramble=1'
     })
 
     await expect($fetch('/auto/vunknown')).rejects.toMatchObject({ statusCode: 404 })

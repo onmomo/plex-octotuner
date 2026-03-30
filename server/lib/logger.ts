@@ -15,6 +15,7 @@ export type Logger = {
 
 const URL_IN_TEXT_PATTERN = /https?:\/\/[^\s"'<>]+/gi
 const DEFAULT_SINK_LIMIT = 200
+const PLAYBACK_STARTED_MESSAGE = 'channel playback started'
 
 function sanitizeUrlText(value: string): string {
   return value.replace(URL_IN_TEXT_PATTERN, (candidate) => {
@@ -31,7 +32,7 @@ function sanitizeUrlText(value: string): string {
   })
 }
 
-function sanitizeValue(value: unknown): unknown {
+function sanitizeValue(value: unknown, preserveUpstreamUrl = false): unknown {
   if (typeof value === 'string') {
     return sanitizeUrlText(value)
   }
@@ -45,7 +46,7 @@ function sanitizeValue(value: unknown): unknown {
       name: value.name,
       message: sanitizeUrlText(value.message),
       stack: value.stack ? sanitizeUrlText(value.stack) : undefined,
-      cause: sanitizeValue(value.cause),
+      cause: sanitizeValue(value.cause, preserveUpstreamUrl),
       ...extra
     }
   }
@@ -60,12 +61,18 @@ function sanitizeValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item))
+    return value.map((item) => sanitizeValue(item, preserveUpstreamUrl))
   }
 
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, sanitizeValue(entry)])
+      Object.entries(value).map(([key, entry]) => {
+        if (preserveUpstreamUrl && key === 'upstreamUrl' && typeof entry === 'string') {
+          return [key, entry]
+        }
+
+        return [key, sanitizeValue(entry, preserveUpstreamUrl)]
+      })
     )
   }
 
@@ -77,7 +84,9 @@ function formatLogLine(message: string, context?: LogContext): string {
     return sanitizeUrlText(message)
   }
 
-  return `${sanitizeUrlText(message)} ${JSON.stringify(sanitizeValue(context))}`
+  const preserveUpstreamUrl = message === PLAYBACK_STARTED_MESSAGE
+
+  return `${sanitizeUrlText(message)} ${JSON.stringify(sanitizeValue(context, preserveUpstreamUrl))}`
 }
 
 function appendToSink(sink: string[], line: string, sinkLimit: number): void {
