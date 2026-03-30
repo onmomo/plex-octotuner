@@ -192,6 +192,27 @@ describe('createBridgeRuntime', () => {
     expect(dgramMock.state.created[1]?.socket.close).toHaveBeenCalledTimes(1)
   })
 
+  it('fails fast and cleans up when SSDP multicast join cannot bind the advertised interface', async () => {
+    dgramMock.reset()
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const multicastError = Object.assign(new Error('addMembership ENODEV'), { code: 'ENODEV' })
+    const firstSocketRecord = dgramMock.state.queue[0]!
+
+    firstSocketRecord.socket.addMembership.mockImplementationOnce(() => {
+      throw multicastError
+    })
+
+    await expect(createBridgeRuntime({
+      env: validEnv,
+      fetchPlaylist: async () => samplePlaylist,
+      logger,
+      probeDeviceIdCollision: async () => false,
+      startDiscovery: (runtime, registerCleanup) => startDiscoveryServer(runtime, registerCleanup, { startControl: false })
+    })).rejects.toThrow(/ssdp multicast join failed on interface 192\.168\.1\.50/)
+
+    expect(dgramMock.state.created[0]?.socket.close).toHaveBeenCalledTimes(1)
+  })
+
   it('loads startup config and initial channels', async () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
 

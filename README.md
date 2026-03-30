@@ -36,6 +36,12 @@ Build the production image:
 docker build -t plex-octotuner .
 ```
 
+If you are building on one architecture and running on another, build for the target platform explicitly. For example, from Apple Silicon for an x86_64 Linux host:
+
+```bash
+docker buildx build --platform linux/amd64 -t plex-octotuner --load .
+```
+
 Run it on a Linux Docker host with host networking:
 
 ```bash
@@ -47,6 +53,7 @@ The supported v1 command above assumes the ports in `.env` stay aligned:
 - `PORT` is the Nitro listener port inside the container
 - `SERVER_PORT` is the validated bridge port
 - `ADVERTISED_BASE_URL` must use the same port Plex will reach on the LAN
+- `ADVERTISED_BASE_URL` must use an IPv4 address that belongs to the host running the container
 
 ## Local verification
 
@@ -58,7 +65,15 @@ Automated checks for this task:
 Manual Plex verification on the supported Docker path:
 
 1. Start the container with `--network host` and confirm startup succeeds with no config or playlist-load errors.
-2. In Plex DVR setup, confirm the bridge is discovered on the LAN.
-3. Confirm Plex requests `/dri/device.xml`, `/discover.json`, `/lineup_status.json`, and `/lineup.json`.
+2. In Plex DVR setup, add the tuner manually with `http://<bridge-host-ip>:34400` if same-host auto-discovery is unreliable.
+3. Confirm Plex requests `/device.xml`, `/discover.json`, `/lineup_status.json`, and `/lineup.json`.
 4. Start playback for a channel and confirm requests hit `/auto/v<channel-id>`.
-5. Confirm the playback response is `302 Found` and the redirect target still includes the original octopus descrambler query parameters.
+5. For `rtsp://` playlist entries, confirm the bridge logs `rtsp relay media started` and Plex plays the channel over HTTP MPEG-TS.
+6. If playback artifacts appear, check for `rtsp relay detected RTP sequence gap` or `rtsp relay detected MPEG-TS continuity mismatch`.
+
+## Deployment notes
+
+- Recommended runtime: a wired Linux host with Docker `--network host`
+- Best observed playback quality: run the bridge on the same Linux host as Plex Media Server
+- Same-host auto-discovery can still be less reliable than manual tuner add in Plex
+- Octopus descrambled RTSP playback currently falls back to UDP transport because the tuner rejects the tested RTSP interleaved TCP `SETUP` variants with `461 Unsupported Transport`

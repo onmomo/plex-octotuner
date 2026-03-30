@@ -248,6 +248,28 @@ function logSocketError(logger: BridgeLogger, scope: string, error: unknown): vo
   logger.error(`${scope} socket error`, error)
 }
 
+function joinSsdpMulticastGroup(
+  socket: Socket,
+  multicastHost: string,
+  multicastInterface?: string
+): void {
+  try {
+    if (multicastInterface) {
+      socket.addMembership(multicastHost, multicastInterface)
+      socket.setMulticastInterface(multicastInterface)
+      return
+    }
+
+    socket.addMembership(multicastHost)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    const interfaceLabel = multicastInterface ? ` on interface ${multicastInterface}` : ''
+    throw new Error(`ssdp multicast join failed${interfaceLabel}: ${reason}`, {
+      cause: error
+    })
+  }
+}
+
 export async function sendStartupNotify({ config, send }: StartupNotifyOptions): Promise<void> {
   for (const packet of buildSsdpNotifyPackets(config)) {
     await send(packet, SSDP_MULTICAST_HOST, SSDP_MULTICAST_PORT)
@@ -354,12 +376,7 @@ export async function startDiscoveryServer(
   registerSocketCleanup(ssdpSocket, registerCleanup)
   await bindSocket(ssdpSocket, ssdpPort, options.bindAddress)
   if (joinSsdpMulticast) {
-    if (ssdpMulticastInterface) {
-      ssdpSocket.addMembership(ssdpMulticastHost, ssdpMulticastInterface)
-      ssdpSocket.setMulticastInterface(ssdpMulticastInterface)
-    } else {
-      ssdpSocket.addMembership(ssdpMulticastHost)
-    }
+    joinSsdpMulticastGroup(ssdpSocket, ssdpMulticastHost, ssdpMulticastInterface)
   }
 
   const hdhomerunSocket = createSocket(UDP4_SOCKET_TYPE)

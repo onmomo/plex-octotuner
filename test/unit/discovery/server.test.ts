@@ -410,6 +410,52 @@ describe('discovery server responders', () => {
     await handle.stop()
   })
 
+  it('fails fast when SSDP multicast membership cannot join the selected interface', async () => {
+    const firstSocketRecord = dgramMock.state.queue[0]!
+    const interfaceError = Object.assign(new Error('addMembership ENODEV'), { code: 'ENODEV' })
+    firstSocketRecord.socket.addMembership.mockImplementationOnce(() => {
+      throw interfaceError
+    })
+
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const runtime = {
+      config,
+      logger,
+      store: { getChannels: () => [] },
+      fetchPlaylist: vi.fn(),
+      stop: vi.fn()
+    }
+
+    await expect(startDiscoveryServer(runtime, undefined, { startControl: false })).rejects.toThrow(
+      'ssdp multicast join failed on interface 192.168.1.50: addMembership ENODEV'
+    )
+  })
+
+  it('fails fast when multicast membership is unavailable on the default route too', async () => {
+    const firstSocketRecord = dgramMock.state.queue[0]!
+    const fallbackError = Object.assign(new Error('addMembership ENODEV'), { code: 'ENODEV' })
+    firstSocketRecord.socket.addMembership.mockImplementationOnce(() => {
+      throw fallbackError
+    })
+
+    const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
+    const runtime = {
+      config: loadBridgeConfig({
+        M3U_URL: 'http://octopus.local/playlist.m3u',
+        ADVERTISED_BASE_URL: 'http://octopus.local:34400',
+        HDHR_DEVICE_ID: '105A1B22'
+      }),
+      logger,
+      store: { getChannels: () => [] },
+      fetchPlaylist: vi.fn(),
+      stop: vi.fn()
+    }
+
+    await expect(startDiscoveryServer(runtime, undefined, { startControl: false })).rejects.toThrow(
+      'ssdp multicast join failed: addMembership ENODEV'
+    )
+  })
+
   it('honors test-only bind and startup options for live socket coverage', async () => {
     const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() }
     const runtime = {
