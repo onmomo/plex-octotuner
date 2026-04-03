@@ -4,13 +4,17 @@
 <a href="https://github.com/sponsors/onmomo" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Sponsor-❤-brightgreen" alt="sponsor me"></a>
 </p>
 
-# Plex-Octotuner
+<p align="center">
+  <img src="docs/assets/plex-octotuner-logo.svg" alt="Plex Octotuner logo" width="760">
+</p>
+
+# Plex Octotuner
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
 
-## plex-octotuner bridge in PMS Live TV & DVR settings
+## Plex Octotuner bridge shown in PMS Live TV & DVR settings
 
-![plex-octotuner bridge in PMS Live TV & DVR settings](docs/assets/plex-octotuner.png)
+![plex octotuner bridge in PMS Live TV & DVR settings](docs/assets/plex-octotuner.png)
 
 
 ## Compatibility
@@ -123,3 +127,8 @@ Manual Plex verification on the supported Docker path:
 - Same-host auto-discovery can still be less reliable than manual tuner add in Plex
 - Octopus descrambled RTSP playback currently falls back to UDP transport because the tuner rejects the tested RTSP interleaved TCP `SETUP` variants with `461 Unsupported Transport`
 - This project is independent and is not affiliated with, endorsed by, or supported by Digital Devices or any other device vendor
+
+## Credits
+
+- [`xTeVe`](https://github.com/xteve-project/xTeVe) helped inform the broader IPTV-to-Plex bridge space and the practical shape of a Plex-facing tuner bridge.
+- [`antennas`](https://github.com/jfarseneau/antennas) provided useful HDHomeRun bridge inspiration, especially around presenting a compatible tuner surface to Plex.
