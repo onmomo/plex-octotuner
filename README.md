@@ -1,6 +1,17 @@
-# plex-octotuner
+<p>
+<a href="https://codecov.io/gh/onmomo/plex-octotuner" target="_blank" rel="noopener noreferrer"><img src="https://codecov.io/gh/onmomo/plex-octotuner/graph/badge.svg?token=YKSKRGA15P" alt="codecov coverage badge"></a>
+<a href="https://hub.docker.com/r/onmomo/plex-octotuner/tags" target="_blank" rel="noopener noreferrer"><img src="https://badgen.net/docker/pulls/onmomo/plex-octotuner?icon=docker&label=pulls" alt="dockerhub pulls badge"></a>
+<a href="https://github.com/sponsors/onmomo" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Sponsor-❤-brightgreen" alt="sponsor me"></a>
+</p>
+
+# Plex-Octotuner
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
+
+## plex-octotuner bridge in PMS Live TV & DVR settings
+
+![plex-octotuner bridge in PMS Live TV & DVR settings](docs/assets/plex-octotuner.png)
+
 
 ## Compatibility
 
