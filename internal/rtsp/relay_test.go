@@ -423,6 +423,128 @@ func TestRelayRejectsUdpSetupWithoutUsableTransportHeader(t *testing.T) {
 	}
 }
 
+func TestRelaySendsTeardownOnContextCancel(t *testing.T) {
+	tcpPort := reserveTCPPort(t)
+	aggregateURL := fmt.Sprintf("rtsp://127.0.0.1:%d/stream?freq=354&x_pmt=44", tcpPort)
+	tsPayload := buildTsPacket(0x66)
+
+	logger := &testLogger{}
+	listener := mustListenTCP(t, tcpPort)
+	defer listener.Close()
+
+	playStarted := make(chan struct{})
+	teardownSeen := make(chan map[string]string, 1)
+
+	go serveRtspFixture(t, listener, func(method, target string, requestHeaders map[string]string, writeResponse func(string)) {
+		cseq := requestHeaders["cseq"]
+		if cseq == "" {
+			cseq = "1"
+		}
+
+		switch method {
+		case "DESCRIBE":
+			sdp := strings.Join([]string{
+				"v=0",
+				"o=- 0 0 IN IP4 127.0.0.1",
+				"s=octopus",
+				"t=0 0",
+				"a=control:*",
+				"m=video 0 RTP/AVP 33",
+				"c=IN IP4 0.0.0.0",
+				"a=control:track1",
+			}, "\r\n")
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Content-Type: application/sdp",
+				fmt.Sprintf("Content-Length: %d", len(sdp)),
+				"",
+				sdp,
+			}, "\r\n"))
+		case "SETUP":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"Transport: RTP/AVP/TCP;interleaved=0-1",
+				"",
+				"",
+			}, "\r\n"))
+		case "PLAY":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
+			writeResponse(string(buildInterleavedFrame(0, buildRtpPacket(tsPayload, 1))))
+			select {
+			case <-playStarted:
+			default:
+				close(playStarted)
+			}
+		case "TEARDOWN":
+			select {
+			case teardownSeen <- requestHeaders:
+			default:
+			}
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
+		default:
+			t.Fatalf("unexpected RTSP method %q target %q", method, target)
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	recorder := httptest.NewRecorder()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Relay(ctx, recorder, aggregateURL, logger)
+	}()
+
+	select {
+	case <-playStarted:
+	case <-time.After(time.Second):
+		t.Fatal("expected PLAY to start")
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for !logger.has("info", "rtsp relay media started") {
+		if time.Now().After(deadline) {
+			t.Fatal("expected relay media to start before cancellation")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Relay() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected relay to stop after context cancellation")
+	}
+
+	select {
+	case headers := <-teardownSeen:
+		if got, want := headers["session"], "12345678"; got != want {
+			t.Fatalf("TEARDOWN session = %q, want %q", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected TEARDOWN after context cancellation")
+	}
+}
+
 func TestRelayDiagnosticsLogsGapsAndSummary(t *testing.T) {
 	logger := &testLogger{}
 	diagnostics := createRelayDiagnostics(logger, "tcp", "rtsp://127.0.0.1:554/stream")

@@ -64,7 +64,7 @@ func Relay(ctx context.Context, w http.ResponseWriter, streamURL string, logger 
 	go func() {
 		select {
 		case <-ctx.Done():
-			_ = socket.Close()
+			_ = socket.SetReadDeadline(time.Now())
 		case <-closed:
 		}
 	}()
@@ -103,6 +103,7 @@ func Relay(ctx context.Context, w http.ResponseWriter, streamURL string, logger 
 		return err
 	}
 	_ = playResp
+	defer bestEffortTeardown(connection, track.playURL, sessionID)
 
 	diagnostics := createRelayDiagnostics(logger, transport.kind, streamURL)
 	started, err := streamMedia(ctx, connection, transport, w, diagnostics, logger, streamURL)
@@ -114,6 +115,21 @@ func Relay(ctx context.Context, w http.ResponseWriter, streamURL string, logger 
 		return err
 	}
 	return nil
+}
+
+func bestEffortTeardown(connection *rtspConnection, playURL *url.URL, sessionID string) {
+	if connection == nil || playURL == nil || sessionID == "" {
+		return
+	}
+
+	_ = connection.conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	defer func() {
+		_ = connection.conn.SetDeadline(time.Time{})
+	}()
+
+	_, _ = connection.request("TEARDOWN", playURL, map[string]string{
+		"Session": sessionID,
+	})
 }
 
 func connectRtspSocket(streamURL *url.URL) (net.Conn, error) {
