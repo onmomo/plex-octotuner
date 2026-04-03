@@ -1,13 +1,7 @@
-node_modules
-.yarn
-.nuxt
-.output
-dist
-coverage
 .DS_Store
-.pnp.cjs
-.pnp.loader.mjs
 .env
 .env.*
 !.env.example
 plex-octotuner
+coverage.out
+.coverprofile
