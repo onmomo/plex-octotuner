@@ -168,6 +168,14 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 			defer udpConn.Close()
 			_, _ = udpConn.Write(buildRtpPacket(tsPayload, 1))
 			close(sendDone)
+		case "TEARDOWN":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
 		default:
 			t.Fatalf("unexpected RTSP method %q", method)
 		}
@@ -197,7 +205,7 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if got, want := requests, []string{"DESCRIBE", "SETUP", "SETUP", "SETUP", "PLAY"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := requests, []string{"DESCRIBE", "SETUP", "SETUP", "SETUP", "PLAY", "TEARDOWN"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("unexpected request sequence: got %v want %v", got, want)
 	}
 	if !strings.Contains(targets[1], "freq=354") || !strings.Contains(targets[1], "x_pmt=44") {
@@ -205,6 +213,9 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 	}
 	if !strings.Contains(targets[4], "freq=354") || !strings.Contains(targets[4], "x_pmt=44") {
 		t.Fatalf("PLAY target did not preserve query: %q", targets[4])
+	}
+	if !strings.Contains(targets[5], "freq=354") || !strings.Contains(targets[5], "x_pmt=44") {
+		t.Fatalf("TEARDOWN target did not preserve query: %q", targets[5])
 	}
 	if got := headers[1]["transport"]; !strings.Contains(got, "RTP/AVP/TCP;unicast;interleaved=0-1") {
 		t.Fatalf("first SETUP transport = %q", got)
@@ -214,6 +225,9 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 	}
 	if got := headers[3]["transport"]; !strings.Contains(got, "client_port=") {
 		t.Fatalf("UDP SETUP transport = %q", got)
+	}
+	if got, want := headers[5]["session"], "12345678"; got != want {
+		t.Fatalf("TEARDOWN session = %q, want %q", got, want)
 	}
 	if !logger.has("info", "negotiated relay transport") {
 		t.Fatalf("expected negotiated-transport log")
@@ -320,6 +334,14 @@ func TestRelayFallsBackWhenTcpSetupSucceedsButNegotiatesUdpTransport(t *testing.
 			defer udpConn.Close()
 			_, _ = udpConn.Write(buildRtpPacket(tsPayload, 1))
 			close(sendDone)
+		case "TEARDOWN":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
 		default:
 			t.Fatalf("unexpected RTSP method %q", method)
 		}
@@ -420,6 +442,128 @@ func TestRelayRejectsUdpSetupWithoutUsableTransportHeader(t *testing.T) {
 	err := Relay(ctx, recorder, aggregateURL, logger)
 	if err == nil {
 		t.Fatal("expected relay setup to fail without a usable UDP transport header")
+	}
+}
+
+func TestRelaySendsTeardownOnContextCancel(t *testing.T) {
+	tcpPort := reserveTCPPort(t)
+	aggregateURL := fmt.Sprintf("rtsp://127.0.0.1:%d/stream?freq=354&x_pmt=44", tcpPort)
+	tsPayload := buildTsPacket(0x66)
+
+	logger := &testLogger{}
+	listener := mustListenTCP(t, tcpPort)
+	defer listener.Close()
+
+	playStarted := make(chan struct{})
+	teardownSeen := make(chan map[string]string, 1)
+
+	go serveRtspFixture(t, listener, func(method, target string, requestHeaders map[string]string, writeResponse func(string)) {
+		cseq := requestHeaders["cseq"]
+		if cseq == "" {
+			cseq = "1"
+		}
+
+		switch method {
+		case "DESCRIBE":
+			sdp := strings.Join([]string{
+				"v=0",
+				"o=- 0 0 IN IP4 127.0.0.1",
+				"s=octopus",
+				"t=0 0",
+				"a=control:*",
+				"m=video 0 RTP/AVP 33",
+				"c=IN IP4 0.0.0.0",
+				"a=control:track1",
+			}, "\r\n")
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Content-Type: application/sdp",
+				fmt.Sprintf("Content-Length: %d", len(sdp)),
+				"",
+				sdp,
+			}, "\r\n"))
+		case "SETUP":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"Transport: RTP/AVP/TCP;interleaved=0-1",
+				"",
+				"",
+			}, "\r\n"))
+		case "PLAY":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
+			writeResponse(string(buildInterleavedFrame(0, buildRtpPacket(tsPayload, 1))))
+			select {
+			case <-playStarted:
+			default:
+				close(playStarted)
+			}
+		case "TEARDOWN":
+			select {
+			case teardownSeen <- requestHeaders:
+			default:
+			}
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
+		default:
+			t.Fatalf("unexpected RTSP method %q target %q", method, target)
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	recorder := httptest.NewRecorder()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- Relay(ctx, recorder, aggregateURL, logger)
+	}()
+
+	select {
+	case <-playStarted:
+	case <-time.After(time.Second):
+		t.Fatal("expected PLAY to start")
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for !logger.has("info", "rtsp relay media started") {
+		if time.Now().After(deadline) {
+			t.Fatal("expected relay media to start before cancellation")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Relay() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected relay to stop after context cancellation")
+	}
+
+	select {
+	case headers := <-teardownSeen:
+		if got, want := headers["session"], "12345678"; got != want {
+			t.Fatalf("TEARDOWN session = %q, want %q", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected TEARDOWN after context cancellation")
 	}
 }
 

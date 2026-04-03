@@ -46,6 +46,40 @@ v1 supports same-LAN Linux Docker deployments with `--network host` only.
 | `PLAYLIST_REFRESH_SECONDS` | No | Defaults to `300` |
 | `SERVER_PORT` | No | Defaults to `34400`; must match `PORT` and the port in `ADVERTISED_BASE_URL` |
 
+## Development
+
+You can run the Go service directly without Docker during development.
+
+Important: the binary reads environment variables from the process environment only. It does not load `.env` files automatically, so export the values in your shell before starting the service.
+
+Example local run:
+
+```bash
+export M3U_URL='http://192.168.1.50/channels/m3u'
+export ADVERTISED_BASE_URL='http://192.168.1.20:34400'
+export SERVER_PORT='34400'
+go run ./cmd/plex-octotuner
+```
+
+Or build a local binary first:
+
+```bash
+go build ./cmd/plex-octotuner
+./plex-octotuner
+```
+
+Useful development commands:
+
+- `go test ./...`
+- `go test -race ./internal/rtsp`
+- `go build ./cmd/plex-octotuner`
+
+Notes:
+
+- For full Plex discovery and playback validation, use a Linux host on the same LAN as Plex.
+- `SERVER_PORT` must match the port embedded in `ADVERTISED_BASE_URL`.
+- `ADVERTISED_BASE_URL` should be the LAN-reachable IPv4 address and port Plex will use to reach the bridge.
+
 ## Docker
 
 Published images are intended to be available as:
