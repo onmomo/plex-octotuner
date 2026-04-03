@@ -21,9 +21,9 @@
     <g filter="url(#softShadow)">
       <path d="M74 18C74 8.05888 82.0589 0 92 0H148C157.941 0 166 8.05888 166 18V18H74V18Z" fill="#EFF5F9"/>
       <path d="M38 66C38 27.3401 69.3401 -4 108 -4H132C170.66 -4 202 27.3401 202 66" stroke="#12384D" stroke-width="8" stroke-linecap="round"/>
-      <circle cx="120" cy="12" r="7" fill="#12384D"/>
-      <circle cx="137" cy="18" r="5.5" fill="#12384D" opacity="0.7"/>
-      <circle cx="151" cy="26" r="4" fill="#12384D" opacity="0.45"/>
+      <circle cx="107" cy="18" r="4" fill="#12384D" opacity="0.45"/>
+      <circle cx="120" cy="18" r="7" fill="#12384D"/>
+      <circle cx="133" cy="18" r="5.5" fill="#12384D" opacity="0.7"/>
 
       <path d="M66 86C66 57.2812 89.2812 34 118 34H122C150.719 34 174 57.2812 174 86V98C174 122.301 154.301 142 130 142H110C85.6995 142 66 122.301 66 98V86Z" fill="url(#headGlow)"/>
       <circle cx="96" cy="86" r="7" fill="#12384D"/>
