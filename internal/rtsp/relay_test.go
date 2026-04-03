@@ -168,6 +168,14 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 			defer udpConn.Close()
 			_, _ = udpConn.Write(buildRtpPacket(tsPayload, 1))
 			close(sendDone)
+		case "TEARDOWN":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
 		default:
 			t.Fatalf("unexpected RTSP method %q", method)
 		}
@@ -197,7 +205,7 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if got, want := requests, []string{"DESCRIBE", "SETUP", "SETUP", "SETUP", "PLAY"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := requests, []string{"DESCRIBE", "SETUP", "SETUP", "SETUP", "PLAY", "TEARDOWN"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("unexpected request sequence: got %v want %v", got, want)
 	}
 	if !strings.Contains(targets[1], "freq=354") || !strings.Contains(targets[1], "x_pmt=44") {
@@ -205,6 +213,9 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 	}
 	if !strings.Contains(targets[4], "freq=354") || !strings.Contains(targets[4], "x_pmt=44") {
 		t.Fatalf("PLAY target did not preserve query: %q", targets[4])
+	}
+	if !strings.Contains(targets[5], "freq=354") || !strings.Contains(targets[5], "x_pmt=44") {
+		t.Fatalf("TEARDOWN target did not preserve query: %q", targets[5])
 	}
 	if got := headers[1]["transport"]; !strings.Contains(got, "RTP/AVP/TCP;unicast;interleaved=0-1") {
 		t.Fatalf("first SETUP transport = %q", got)
@@ -214,6 +225,9 @@ func TestRelayFallsBackToUdpAndStreamsMpegTS(t *testing.T) {
 	}
 	if got := headers[3]["transport"]; !strings.Contains(got, "client_port=") {
 		t.Fatalf("UDP SETUP transport = %q", got)
+	}
+	if got, want := headers[5]["session"], "12345678"; got != want {
+		t.Fatalf("TEARDOWN session = %q, want %q", got, want)
 	}
 	if !logger.has("info", "negotiated relay transport") {
 		t.Fatalf("expected negotiated-transport log")
@@ -320,6 +334,14 @@ func TestRelayFallsBackWhenTcpSetupSucceedsButNegotiatesUdpTransport(t *testing.
 			defer udpConn.Close()
 			_, _ = udpConn.Write(buildRtpPacket(tsPayload, 1))
 			close(sendDone)
+		case "TEARDOWN":
+			writeResponse(strings.Join([]string{
+				"RTSP/1.0 200 OK",
+				"CSeq: " + cseq,
+				"Session: 12345678",
+				"",
+				"",
+			}, "\r\n"))
 		default:
 			t.Fatalf("unexpected RTSP method %q", method)
 		}
