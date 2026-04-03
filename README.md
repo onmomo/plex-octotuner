@@ -2,6 +2,11 @@
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
 
+## Compatibility
+
+- Tested with Octopus Net by Digital Devices using M3U playlists that expose `rtsp://` streams
+- May also work with other M3U playlists that expose `rtsp://` streams, but that compatibility is not guaranteed and has not been validated broadly
+
 ## Supported deployment contract
 
 v1 supports same-LAN Linux Docker deployments with `--network host` only.
@@ -46,6 +51,17 @@ Run it on a Linux Docker host with host networking:
 docker run --rm --network host --env-file .env plex-octotuner
 ```
 
+Or inject non-default values directly on the command line:
+
+```bash
+docker run --rm --network host \
+  -e M3U_URL='http://192.168.1.50/channels/m3u' \
+  -e ADVERTISED_BASE_URL='http://192.168.1.20:34400' \
+  -e HDHR_TUNER_COUNT='8' \
+  -e SERVER_PORT='34400' \
+  plex-octotuner
+```
+
 The supported command above assumes the ports in `.env` stay aligned:
 
 - `SERVER_PORT` is the validated bridge port
@@ -76,4 +92,4 @@ Manual Plex verification on the supported Docker path:
 - Best observed playback quality: run the bridge on the same Linux host as Plex Media Server
 - Same-host auto-discovery can still be less reliable than manual tuner add in Plex
 - Octopus descrambled RTSP playback currently falls back to UDP transport because the tuner rejects the tested RTSP interleaved TCP `SETUP` variants with `461 Unsupported Transport`
-- The Go rewrite keeps the old Node/Nuxt implementation in the repo as a behavioral reference, but the documented runtime path is now the Go binary and Docker image
+- This project is independent and is not affiliated with, endorsed by, or supported by Digital Devices or any other device vendor

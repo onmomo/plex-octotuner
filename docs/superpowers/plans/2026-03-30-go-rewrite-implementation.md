@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace the current Nuxt/Nitro bridge with a single Go binary that preserves the existing Plex-facing behavior while improving RTSP/RTP ingest reliability.
+Replace the former Nuxt/Nitro bridge with a single Go binary that preserves the existing Plex-facing behavior while improving RTSP/RTP ingest reliability.
 
 ## Tasks
 
