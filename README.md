@@ -127,3 +127,8 @@ Manual Plex verification on the supported Docker path:
 - Same-host auto-discovery can still be less reliable than manual tuner add in Plex
 - Octopus descrambled RTSP playback currently falls back to UDP transport because the tuner rejects the tested RTSP interleaved TCP `SETUP` variants with `461 Unsupported Transport`
 - This project is independent and is not affiliated with, endorsed by, or supported by Digital Devices or any other device vendor
+
+## Credits
+
+- [`xTeVe`](https://github.com/xteve-project/xTeVe) helped inform the broader IPTV-to-Plex bridge space and the practical shape of a Plex-facing tuner bridge.
+- [`antennas`](https://github.com/jfarseneau/antennas) provided useful HDHomeRun bridge inspiration, especially around presenting a compatible tuner surface to Plex.
