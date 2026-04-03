@@ -414,7 +414,7 @@ async function createUdpTransport(): Promise<UdpTransport> {
 
 async function negotiateTransport(
   connection: RtspConnection,
-  logger: BridgeLogger | undefined,
+  logger: BridgeLogger,
   setupUrl: URL
 ): Promise<SetupResult> {
   let lastTcpError: unknown
@@ -435,7 +435,7 @@ async function negotiateTransport(
   }
 
   {
-    logger?.warn('rtsp relay fell back to UDP transport', {
+    logger.warn('rtsp relay fell back to UDP transport', {
       upstreamUrl: setupUrl.toString(),
       reason: lastTcpError instanceof Error ? lastTcpError.message : String(lastTcpError)
     })
@@ -707,7 +707,7 @@ class RtspConnection {
 
 async function performRtspRequest(
   connection: RtspConnection,
-  logger: BridgeLogger | undefined,
+  logger: BridgeLogger,
   method: string,
   url: URL,
   headers: Record<string, string> = {}

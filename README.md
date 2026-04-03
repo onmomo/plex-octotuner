@@ -1,6 +1,6 @@
 # plex-octotuner
 
-Nuxt/Nitro bridge that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
+Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
 
 ## Supported deployment contract
 
@@ -17,8 +17,6 @@ v1 supports same-LAN Linux Docker deployments with `--network host` only.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `HOST` | Recommended | Keep `0.0.0.0` in Docker |
-| `PORT` | Recommended | Nitro bind port; must match `SERVER_PORT` and `ADVERTISED_BASE_URL` |
 | `M3U_URL` | Yes | octopus-generated playlist URL |
 | `ADVERTISED_BASE_URL` | Yes | LAN-reachable origin Plex uses, with explicit port and no path/query |
 | `HDHR_DEVICE_ID` | No | Defaults to `105A1B22`; override with a unique 8-character uppercase hexadecimal ID on your LAN |
@@ -48,19 +46,20 @@ Run it on a Linux Docker host with host networking:
 docker run --rm --network host --env-file .env plex-octotuner
 ```
 
-The supported v1 command above assumes the ports in `.env` stay aligned:
+The supported command above assumes the ports in `.env` stay aligned:
 
-- `PORT` is the Nitro listener port inside the container
 - `SERVER_PORT` is the validated bridge port
 - `ADVERTISED_BASE_URL` must use the same port Plex will reach on the LAN
 - `ADVERTISED_BASE_URL` must use an IPv4 address that belongs to the host running the container
 
 ## Local verification
 
-Automated checks for this task:
+Automated checks for the Go runtime path:
 
-- `yarn vitest run`
-- `yarn build`
+- `go test ./...`
+- `go test -race ./internal/rtsp`
+- `go build ./cmd/plex-octotuner`
+- `docker build -t plex-octotuner .`
 
 Manual Plex verification on the supported Docker path:
 
@@ -77,3 +76,4 @@ Manual Plex verification on the supported Docker path:
 - Best observed playback quality: run the bridge on the same Linux host as Plex Media Server
 - Same-host auto-discovery can still be less reliable than manual tuner add in Plex
 - Octopus descrambled RTSP playback currently falls back to UDP transport because the tuner rejects the tested RTSP interleaved TCP `SETUP` variants with `461 Unsupported Transport`
+- The Go rewrite keeps the old Node/Nuxt implementation in the repo as a behavioral reference, but the documented runtime path is now the Go binary and Docker image

@@ -1,28 +1,27 @@
-FROM node:22-alpine AS build
+FROM golang:1.24-alpine AS build
+
+WORKDIR /src
+
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/plex-octotuner ./cmd/plex-octotuner
+
+FROM alpine:3.21 AS runtime
+
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-COPY package.json yarn.lock .yarnrc.yml ./
-RUN corepack enable && yarn install --immutable
-
-COPY app.vue nuxt.config.ts ./
-COPY server ./server
-RUN yarn build
-
-FROM node:22-alpine AS runtime
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV HOST=0.0.0.0
-ENV PORT=34400
-
-COPY --from=build /app/.output /app/.output
+COPY --from=build /out/plex-octotuner /usr/local/bin/plex-octotuner
 
 EXPOSE 34400/tcp
 EXPOSE 1900/udp
 EXPOSE 65001/udp
+EXPOSE 65001/tcp
 
-USER node
-
-CMD ["node", ".output/server/index.mjs"]
+CMD ["plex-octotuner"]
