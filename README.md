@@ -33,7 +33,26 @@ v1 supports same-LAN Linux Docker deployments with `--network host` only.
 
 ## Docker
 
-Build the production image:
+Published images are intended to be available as:
+
+- `onmomo/plex-octotuner:latest`
+- `onmomo/plex-octotuner:<version>`
+
+The GitHub Actions release flow is designed to bump the minor version automatically on every merge into `develop` and publish both tags to Docker Hub.
+
+Run the published image on a Linux Docker host with host networking:
+
+```bash
+docker run --rm --network host --env-file .env onmomo/plex-octotuner:latest
+```
+
+Or pin a specific published version:
+
+```bash
+docker run --rm --network host --env-file .env onmomo/plex-octotuner:<version>
+```
+
+Build the production image locally:
 
 ```bash
 docker build -t plex-octotuner .
@@ -45,7 +64,7 @@ If you are building on one architecture and running on another, build for the ta
 docker buildx build --platform linux/amd64 -t plex-octotuner --load .
 ```
 
-Run it on a Linux Docker host with host networking:
+Run the locally built image:
 
 ```bash
 docker run --rm --network host --env-file .env plex-octotuner
