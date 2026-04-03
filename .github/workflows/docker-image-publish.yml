@@ -1,0 +1,57 @@
+name: Git tag and Publish Docker Image
+
+on:
+  push:
+    branches: ['develop']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Git config
+        run: |
+          gh auth setup-git
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bump version
+        id: app_version
+        run: |
+          version="$(go run ./tools/bumpversion -file VERSION -release minor)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - name: Commit version and create tag
+        run: |
+          git add VERSION
+          git commit -m "chore: release v${{ steps.app_version.outputs.version }}"
+          git tag "v${{ steps.app_version.outputs.version }}"
+      - name: Create and push git tag
+        run: git push --follow-tags origin develop
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build & Push the multi-platform Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: onmomo/plex-octotuner:latest,onmomo/plex-octotuner:${{ steps.app_version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          build-args: APP_VERSION=${{ steps.app_version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

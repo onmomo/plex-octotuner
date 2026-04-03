@@ -1,6 +1,17 @@
-# plex-octotuner
+<p>
+<a href="https://codecov.io/gh/onmomo/plex-octotuner" target="_blank" rel="noopener noreferrer"><img src="https://codecov.io/gh/onmomo/plex-octotuner/graph/badge.svg?token=YKSKRGA15P" alt="codecov coverage badge"></a>
+<a href="https://hub.docker.com/r/onmomo/plex-octotuner/tags" target="_blank" rel="noopener noreferrer"><img src="https://badgen.net/docker/pulls/onmomo/plex-octotuner?icon=docker&label=pulls" alt="dockerhub pulls badge"></a>
+<a href="https://github.com/sponsors/onmomo" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Sponsor-❤-brightgreen" alt="sponsor me"></a>
+</p>
+
+# Plex-Octotuner
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
+
+## plex-octotuner bridge in PMS Live TV & DVR settings
+
+![plex-octotuner bridge in PMS Live TV & DVR settings](docs/assets/plex-octotuner.png)
+
 
 ## Compatibility
 
@@ -33,7 +44,26 @@ v1 supports same-LAN Linux Docker deployments with `--network host` only.
 
 ## Docker
 
-Build the production image:
+Published images are intended to be available as:
+
+- `onmomo/plex-octotuner:latest`
+- `onmomo/plex-octotuner:<version>`
+
+The GitHub Actions release flow is designed to bump the minor version automatically on every merge into `develop` and publish both tags to Docker Hub.
+
+Run the published image on a Linux Docker host with host networking:
+
+```bash
+docker run --rm --network host --env-file .env onmomo/plex-octotuner:latest
+```
+
+Or pin a specific published version:
+
+```bash
+docker run --rm --network host --env-file .env onmomo/plex-octotuner:<version>
+```
+
+Build the production image locally:
 
 ```bash
 docker build -t plex-octotuner .
@@ -45,7 +75,7 @@ If you are building on one architecture and running on another, build for the ta
 docker buildx build --platform linux/amd64 -t plex-octotuner --load .
 ```
 
-Run it on a Linux Docker host with host networking:
+Run the locally built image:
 
 ```bash
 docker run --rm --network host --env-file .env plex-octotuner
