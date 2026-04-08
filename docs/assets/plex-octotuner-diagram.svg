@@ -1,0 +1,97 @@
+<svg width="760" height="340" viewBox="0 0 760 340" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="diag-title diag-desc">
+  <title id="diag-title">Plex Octotuner architecture diagram</title>
+  <desc id="diag-desc">Diagram showing how Plex Octotuner bridges an Octopus Net DVB tuner to Plex Media Server by emulating an HDHomeRun device.</desc>
+
+  <defs>
+    <linearGradient id="dg-cardHeader" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#12384D"/>
+      <stop offset="100%" stop-color="#1A4D66"/>
+    </linearGradient>
+    <linearGradient id="dg-bridgeHeader" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#E56A1F"/>
+      <stop offset="100%" stop-color="#F68A45"/>
+    </linearGradient>
+    <filter id="dg-shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#12384D" flood-opacity="0.10"/>
+    </filter>
+    <marker id="dg-arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#F47A2F"/>
+    </marker>
+    <marker id="dg-arrowDark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#12384D"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="760" height="340" rx="20" fill="#F8FBFD"/>
+
+  <!-- Title -->
+  <text x="380" y="38" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700" letter-spacing="3">HOW IT WORKS</text>
+
+  <!-- Card 1: Octopus Net -->
+  <g filter="url(#dg-shadow)">
+    <rect x="16" y="68" width="190" height="176" rx="12" fill="white"/>
+    <path d="M28 68 H194 A12 12 0 0 1 206 80 V108 H16 V80 A12 12 0 0 1 28 68Z" fill="url(#dg-cardHeader)"/>
+    <text x="111" y="95" text-anchor="middle" fill="white" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" letter-spacing="0.5">OCTOPUS NET</text>
+
+    <!-- Antenna / dish icon -->
+    <circle cx="111" cy="148" r="18" stroke="#D7E5EE" stroke-width="2" fill="none"/>
+    <circle cx="111" cy="148" r="10" stroke="#D7E5EE" stroke-width="2" fill="none"/>
+    <circle cx="111" cy="148" r="4" fill="#F47A2F"/>
+    <line x1="111" y1="148" x2="128" y2="132" stroke="#12384D" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="129" cy="131" r="3" fill="#12384D"/>
+
+    <text x="111" y="192" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600">DVB Tuner</text>
+    <text x="111" y="210" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5">M3U Playlist Source</text>
+    <text x="111" y="226" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5">RTSP Streams</text>
+  </g>
+
+  <!-- Arrow zone 1: Octopus Net to Bridge -->
+  <line x1="216" y1="155" x2="274" y2="155" stroke="#F47A2F" stroke-width="2.5" marker-end="url(#dg-arrowOrange)"/>
+  <text x="245" y="144" text-anchor="middle" fill="#F47A2F" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="700">M3U</text>
+  <text x="245" y="174" text-anchor="middle" fill="#F47A2F" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="700">RTSP</text>
+
+  <!-- Card 2: Plex Octotuner (emphasized) -->
+  <g filter="url(#dg-shadow)">
+    <rect x="285" y="56" width="190" height="202" rx="12" fill="white" stroke="#F47A2F" stroke-width="1.5"/>
+    <path d="M297 56 H463 A12 12 0 0 1 475 68 V96 H285 V68 A12 12 0 0 1 297 56Z" fill="url(#dg-bridgeHeader)"/>
+    <text x="380" y="83" text-anchor="middle" fill="white" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="13" font-weight="700" letter-spacing="0.5">PLEX OCTOTUNER</text>
+
+    <!-- Mini bridge-octopus icon -->
+    <path d="M354 128 Q380 108, 406 128" stroke="#12384D" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <circle cx="380" cy="115" r="4" fill="#F47A2F"/>
+    <line x1="362" y1="130" x2="362" y2="148" stroke="#F7BF9D" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="380" y1="125" x2="380" y2="148" stroke="#F47A2F" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="398" y1="130" x2="398" y2="148" stroke="#F7BF9D" stroke-width="2.5" stroke-linecap="round"/>
+
+    <text x="380" y="170" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">HDHomeRun Bridge</text>
+    <text x="380" y="190" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5">Parses channels from M3U</text>
+    <text x="380" y="205" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5">Relays RTSP as HTTP MPEG-TS</text>
+    <text x="380" y="220" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5">SSDP + HDHomeRun discovery</text>
+    <text x="380" y="235" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5">Emulates tuner device</text>
+  </g>
+
+  <!-- Arrow zone 2: Bridge to Plex -->
+  <line x1="486" y1="155" x2="543" y2="155" stroke="#12384D" stroke-width="2.5" marker-end="url(#dg-arrowDark)"/>
+  <text x="514" y="144" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="700">HDHomeRun</text>
+  <text x="514" y="174" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="700">MPEG-TS</text>
+
+  <!-- Card 3: Plex Media Server -->
+  <g filter="url(#dg-shadow)">
+    <rect x="554" y="68" width="190" height="176" rx="12" fill="white"/>
+    <path d="M566 68 H732 A12 12 0 0 1 744 80 V108 H554 V80 A12 12 0 0 1 566 68Z" fill="url(#dg-cardHeader)"/>
+    <text x="649" y="95" text-anchor="middle" fill="white" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" letter-spacing="0.5">PLEX</text>
+
+    <!-- Play button icon -->
+    <path d="M638 133 L638 165 L664 149 Z" fill="#12384D"/>
+
+    <text x="649" y="192" text-anchor="middle" fill="#12384D" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="600">Media Server</text>
+    <text x="649" y="210" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5">Live TV &amp; DVR</text>
+    <text x="649" y="226" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5">Channel Playback</text>
+  </g>
+
+  <!-- Bottom annotation -->
+  <line x1="80" y1="284" x2="680" y2="284" stroke="#D7E5EE" stroke-width="1"/>
+  <text x="380" y="308" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">Plex discovers the bridge via SSDP multicast and HDHomeRun UDP on the local network.</text>
+  <text x="380" y="326" text-anchor="middle" fill="#4B7284" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">RTSP streams are relayed as HTTP MPEG-TS so Plex can play channels natively.</text>
+</svg>
