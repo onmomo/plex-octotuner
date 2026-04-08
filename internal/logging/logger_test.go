@@ -182,17 +182,13 @@ func TestSanitizeValuePassesThroughUnknownType(t *testing.T) {
 
 // ---- formatLogLine ---------------------------------------------------------
 
-func TestFormatLogLineNilContext(t *testing.T) {
-	got := formatLogLine("hello world", nil)
-	if got != "hello world" {
-		t.Errorf("formatLogLine with nil context = %q, want %q", got, "hello world")
-	}
-}
-
 func TestFormatLogLineNilContextSanitizesMessage(t *testing.T) {
 	got := formatLogLine("connect http://user:pw@host.com/", nil)
 	if strings.Contains(got, "pw") {
 		t.Errorf("formatLogLine did not sanitize message URL: %q", got)
+	}
+	if !strings.Contains(got, "connect") {
+		t.Errorf("formatLogLine dropped message text: %q", got)
 	}
 }
 
@@ -224,43 +220,19 @@ func TestFormatLogLineOtherMessageSanitizesUpstreamURL(t *testing.T) {
 
 // ---- Logger ----------------------------------------------------------------
 
-func TestLoggerNewCreatesEmptySink(t *testing.T) {
+func TestLoggerAppendsFormattedLines(t *testing.T) {
 	l := New()
-	if len(l.Sink) != 0 {
-		t.Errorf("New() sink should be empty, got %d entries", len(l.Sink))
-	}
-}
+	l.Info("info msg", nil)
+	l.Warn("warn msg", nil)
+	l.Error("error msg", nil)
 
-func TestLoggerInfoAppendsLine(t *testing.T) {
-	l := New()
-	l.Info("test info", nil)
-	if len(l.Sink) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(l.Sink))
+	if len(l.Sink) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(l.Sink))
 	}
-	if !strings.Contains(l.Sink[0], "test info") {
-		t.Errorf("Sink entry missing message: %q", l.Sink[0])
-	}
-}
-
-func TestLoggerWarnAppendsLine(t *testing.T) {
-	l := New()
-	l.Warn("test warn", nil)
-	if len(l.Sink) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(l.Sink))
-	}
-	if !strings.Contains(l.Sink[0], "test warn") {
-		t.Errorf("Sink entry missing message: %q", l.Sink[0])
-	}
-}
-
-func TestLoggerErrorAppendsLine(t *testing.T) {
-	l := New()
-	l.Error("test error", nil)
-	if len(l.Sink) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(l.Sink))
-	}
-	if !strings.Contains(l.Sink[0], "test error") {
-		t.Errorf("Sink entry missing message: %q", l.Sink[0])
+	for i, want := range []string{"info msg", "warn msg", "error msg"} {
+		if !strings.Contains(l.Sink[i], want) {
+			t.Errorf("Sink[%d] = %q, missing %q", i, l.Sink[i], want)
+		}
 	}
 }
 

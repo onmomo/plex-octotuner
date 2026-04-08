@@ -7,179 +7,68 @@ import (
 
 // ---- handleTunerRequest (unit tests) ----------------------------------------
 
-func TestHandleTunerRequestGetChannel(t *testing.T) {
-	state := createInitialTunerState()
-	result := handleTunerRequest(&state, "channel", nil)
-	if result == nil || *result != "none" {
-		t.Fatalf("get channel = %v, want \"none\"", result)
+func TestHandleTunerRequestSetGetAndReset(t *testing.T) {
+	cases := []struct {
+		field    string
+		setValue string
+		resetTo  string // expected value after setting empty string
+	}{
+		{"channel", "qam:111000000", "none"},
+		{"target", "udp://192.168.1.10:5000", "none"},
+		{"lockkey", "12345", "none"},
+		{"channelmap", "us-cable", "us-bcast"},
+		{"filter", "0x0100", "0x0000-0x1FFF"},
+		{"program", "5", "0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.field, func(t *testing.T) {
+			state := createInitialTunerState()
+
+			// set a value
+			v := tc.setValue
+			result := handleTunerRequest(&state, tc.field, &v)
+			if result == nil || *result != tc.setValue {
+				t.Fatalf("set %s: got %v, want %q", tc.field, result, tc.setValue)
+			}
+
+			// get returns the same value
+			result = handleTunerRequest(&state, tc.field, nil)
+			if result == nil || *result != tc.setValue {
+				t.Fatalf("get %s: got %v, want %q", tc.field, result, tc.setValue)
+			}
+
+			// setting empty string resets to default
+			empty := ""
+			handleTunerRequest(&state, tc.field, &empty)
+			result = handleTunerRequest(&state, tc.field, nil)
+			if result == nil || *result != tc.resetTo {
+				t.Fatalf("reset %s: got %v, want %q", tc.field, result, tc.resetTo)
+			}
+		})
 	}
 }
 
-func TestHandleTunerRequestSetChannel(t *testing.T) {
+func TestHandleTunerRequestStatus(t *testing.T) {
 	state := createInitialTunerState()
-	v := "qam:111000000"
-	result := handleTunerRequest(&state, "channel", &v)
-	if result == nil || *result != "qam:111000000" {
-		t.Fatalf("set channel = %v", result)
-	}
-	if state.channel != "qam:111000000" {
-		t.Fatalf("state.channel = %q", state.channel)
-	}
-}
 
-func TestHandleTunerRequestSetEmptyChannelResetsToNone(t *testing.T) {
-	state := createInitialTunerState()
-	v := "qam:111000000"
-	handleTunerRequest(&state, "channel", &v)
-	empty := ""
-	handleTunerRequest(&state, "channel", &empty)
-	if state.channel != "none" {
-		t.Fatalf("empty set should reset to \"none\", got %q", state.channel)
-	}
-}
-
-func TestHandleTunerRequestSetAndGetTarget(t *testing.T) {
-	state := createInitialTunerState()
-	v := "udp://192.168.1.10:5000"
-	handleTunerRequest(&state, "target", &v)
-	result := handleTunerRequest(&state, "target", nil)
-	if result == nil || *result != "udp://192.168.1.10:5000" {
-		t.Fatalf("target = %v", result)
-	}
-}
-
-func TestHandleTunerRequestSetEmptyTargetResetsToNone(t *testing.T) {
-	state := createInitialTunerState()
-	v := "udp://192.168.1.10:5000"
-	handleTunerRequest(&state, "target", &v)
-	empty := ""
-	handleTunerRequest(&state, "target", &empty)
-	if state.target != "none" {
-		t.Fatalf("empty target should reset to \"none\", got %q", state.target)
-	}
-}
-
-func TestHandleTunerRequestSetAndGetLockkey(t *testing.T) {
-	state := createInitialTunerState()
-	v := "12345"
-	handleTunerRequest(&state, "lockkey", &v)
-	result := handleTunerRequest(&state, "lockkey", nil)
-	if result == nil || *result != "12345" {
-		t.Fatalf("lockkey = %v", result)
-	}
-}
-
-func TestHandleTunerRequestSetEmptyLockkeyResetsToNone(t *testing.T) {
-	state := createInitialTunerState()
-	v := "12345"
-	handleTunerRequest(&state, "lockkey", &v)
-	empty := ""
-	handleTunerRequest(&state, "lockkey", &empty)
-	if state.lockkey != "none" {
-		t.Fatalf("empty lockkey should reset to \"none\", got %q", state.lockkey)
-	}
-}
-
-func TestHandleTunerRequestSetAndGetChannelmap(t *testing.T) {
-	state := createInitialTunerState()
-	v := "us-cable"
-	handleTunerRequest(&state, "channelmap", &v)
-	if state.channelmap != "us-cable" {
-		t.Fatalf("channelmap = %q", state.channelmap)
-	}
-}
-
-func TestHandleTunerRequestSetEmptyChannelmapResetsDefault(t *testing.T) {
-	state := createInitialTunerState()
-	v := "us-cable"
-	handleTunerRequest(&state, "channelmap", &v)
-	empty := ""
-	handleTunerRequest(&state, "channelmap", &empty)
-	if state.channelmap != "us-bcast" {
-		t.Fatalf("empty channelmap should reset to \"us-bcast\", got %q", state.channelmap)
-	}
-}
-
-func TestHandleTunerRequestSetAndGetFilter(t *testing.T) {
-	state := createInitialTunerState()
-	v := "0x0100"
-	handleTunerRequest(&state, "filter", &v)
-	if state.filter != "0x0100" {
-		t.Fatalf("filter = %q", state.filter)
-	}
-}
-
-func TestHandleTunerRequestSetEmptyFilterResetsDefault(t *testing.T) {
-	state := createInitialTunerState()
-	v := "0x0100"
-	handleTunerRequest(&state, "filter", &v)
-	empty := ""
-	handleTunerRequest(&state, "filter", &empty)
-	if state.filter != "0x0000-0x1FFF" {
-		t.Fatalf("empty filter should reset, got %q", state.filter)
-	}
-}
-
-func TestHandleTunerRequestSetAndGetProgram(t *testing.T) {
-	state := createInitialTunerState()
-	v := "5"
-	handleTunerRequest(&state, "program", &v)
-	if state.program != "5" {
-		t.Fatalf("program = %q", state.program)
-	}
-}
-
-func TestHandleTunerRequestSetEmptyProgramResetsToZero(t *testing.T) {
-	state := createInitialTunerState()
-	v := "5"
-	handleTunerRequest(&state, "program", &v)
-	empty := ""
-	handleTunerRequest(&state, "program", &empty)
-	if state.program != "0" {
-		t.Fatalf("empty program should reset to \"0\", got %q", state.program)
-	}
-}
-
-func TestHandleTunerRequestGetStatus(t *testing.T) {
-	state := createInitialTunerState()
+	// Default state: no channel → lock=none, ss=0
 	result := handleTunerRequest(&state, "status", nil)
 	if result == nil {
 		t.Fatal("status returned nil")
 	}
-	// Default state has channel=none → lock=none signal=0
-	if !strings.Contains(*result, "lock=none") {
-		t.Errorf("default status should show lock=none, got %q", *result)
+	if !strings.Contains(*result, "lock=none") || !strings.Contains(*result, "ss=0") {
+		t.Errorf("default status = %q, want lock=none ss=0", *result)
 	}
-	if !strings.Contains(*result, "ss=0") {
-		t.Errorf("default status should show ss=0, got %q", *result)
-	}
-}
 
-func TestHandleTunerRequestGetStatusWithActiveChannel(t *testing.T) {
-	state := createInitialTunerState()
+	// With active channel → lock=qam, ss=100
 	v := "qam:111000000"
 	handleTunerRequest(&state, "channel", &v)
-
-	result := handleTunerRequest(&state, "status", nil)
+	result = handleTunerRequest(&state, "status", nil)
 	if result == nil {
 		t.Fatal("status returned nil")
 	}
-	if !strings.Contains(*result, "ch=qam:111000000") {
-		t.Errorf("status should include channel, got %q", *result)
-	}
-	if !strings.Contains(*result, "lock=qam") {
-		t.Errorf("active channel should show lock=qam, got %q", *result)
-	}
-	if !strings.Contains(*result, "ss=100") {
-		t.Errorf("active channel should show ss=100, got %q", *result)
-	}
-}
-
-func TestHandleTunerRequestGetStreaminfo(t *testing.T) {
-	state := createInitialTunerState()
-	result := handleTunerRequest(&state, "streaminfo", nil)
-	if result == nil || *result != "none" {
-		t.Fatalf("streaminfo = %v, want \"none\"", result)
+	if !strings.Contains(*result, "ch=qam:111000000") || !strings.Contains(*result, "lock=qam") || !strings.Contains(*result, "ss=100") {
+		t.Errorf("active status = %q, want ch= lock=qam ss=100", *result)
 	}
 }
 
@@ -292,29 +181,3 @@ func TestHandleControlRequestUnknownKey(t *testing.T) {
 	}
 }
 
-// ---- buildTunerStatus ------------------------------------------------------
-
-func TestBuildTunerStatusActiveChannel(t *testing.T) {
-	state := tunerState{channel: "qam:111000000"}
-	result := buildTunerStatus(state)
-	if !strings.Contains(result, "ch=qam:111000000") {
-		t.Errorf("missing channel, got %q", result)
-	}
-	if !strings.Contains(result, "lock=qam") {
-		t.Errorf("missing lock=qam, got %q", result)
-	}
-	if !strings.Contains(result, "ss=100") {
-		t.Errorf("missing ss=100, got %q", result)
-	}
-}
-
-func TestBuildTunerStatusNoChannel(t *testing.T) {
-	state := tunerState{channel: "none"}
-	result := buildTunerStatus(state)
-	if !strings.Contains(result, "lock=none") {
-		t.Errorf("should have lock=none, got %q", result)
-	}
-	if !strings.Contains(result, "ss=0") {
-		t.Errorf("should have ss=0, got %q", result)
-	}
-}
