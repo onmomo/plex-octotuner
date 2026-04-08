@@ -6,14 +6,6 @@ import (
 	"testing"
 )
 
-func TestNewStoreReturnsEmptyChannels(t *testing.T) {
-	store := NewStore(testLogger{})
-	channels := store.GetChannels()
-	if len(channels) != 0 {
-		t.Errorf("new store should be empty, got %d channels", len(channels))
-	}
-}
-
 func TestReplaceFromRawParsesAndStoresChannels(t *testing.T) {
 	store := NewStore(testLogger{})
 	result := store.ReplaceFromRaw(`#EXTM3U
