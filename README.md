@@ -12,6 +12,12 @@
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
 
+## How it works
+
+<p align="center">
+  <img src="docs/assets/plex-octotuner-diagram.svg" alt="Architecture diagram showing Octopus Net providing M3U and RTSP to Plex Octotuner, which emulates an HDHomeRun device for Plex Media Server" width="760">
+</p>
+
 ## Plex Octotuner bridge shown in PMS Live TV & DVR settings
 
 ![plex octotuner bridge in PMS Live TV & DVR settings](docs/assets/plex-octotuner.png)
