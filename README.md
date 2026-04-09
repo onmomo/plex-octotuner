@@ -12,6 +12,12 @@
 
 Go service that exposes an octopus-generated M3U playlist as a single HDHomeRun-compatible tuner for Plex.
 
+## Why this exists
+
+Plex does not support client-side descrambling of encrypted TV channels. Octopus Net by Digital Devices can descramble channels on the tuner itself, but it only exposes descrambled streams via RTSP — not via the SAT>IP protocol that Plex natively supports for Live TV & DVR. So even though the tuner does the hard work of descrambling, Plex has no way to access those streams directly.
+
+Plex Octotuner bridges that gap: it takes the descrambled RTSP streams from the Octopus Net M3U playlist and presents them to Plex as an HDHomeRun-compatible tuner, which Plex knows how to discover and play.
+
 ## How it works
 
 <p align="center">
