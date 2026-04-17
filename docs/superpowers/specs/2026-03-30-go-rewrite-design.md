@@ -6,7 +6,7 @@ Rewrite `plex-octotuner` as a single Go service that exposes an HDHomeRun-compat
 
 ## Why Rewrite
 
-The former Nuxt/Nitro implementation proved the product idea works, but the remaining complexity was concentrated in areas that are a better fit for a systems/runtime language than a web-first JavaScript framework:
+The former JavaScript implementation proved the product idea works, but the remaining complexity was concentrated in areas that are a better fit for a systems/runtime language than a web-first JavaScript framework:
 
 - SSDP multicast and HDHomeRun UDP discovery
 - HDHomeRun control socket handling
@@ -154,7 +154,7 @@ Instead:
 2. preserve the validated Plex-facing behavior
 3. re-implement each subsystem idiomatically in Go
 
-The previous Nuxt bridge should be treated as a historical behavioral reference, not a structural template.
+The previous bridge should be treated as a historical behavioral reference, not a structural template.
 
 ## Non-Goals
 
