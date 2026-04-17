@@ -1,12 +1,6 @@
 .git
-node_modules
-.nuxt
-.output
 coverage
 dist
 plex-octotuner
 .env
 .env.*
-yarn.lock
-.yarn
-.yarnrc.yml
